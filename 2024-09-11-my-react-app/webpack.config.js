@@ -12,13 +12,23 @@ module.exports = {
     publicPath: '/', // 使得应用能够正确地加载资源
   },
   module: {
+    // rules: [
+    //   {
+    //     test: /\.js$/,
+    //     exclude: /node_modules/,
+    //     use: 'babel-loader', // 使用 raw-loader 作为普通加载器
+    //   },
+    // ],
     rules: [
       {
         test: /\.js$/,
-        exclude: /node_modules/,
-        use: 'babel-loader', // 使用 raw-loader 作为普通加载器
-      },
-    ],
+        loader: 'esbuild-loader',
+        options: {
+          // loader: 'jsx', // Remove this if you don't use JSX
+          target: 'es2015'  
+        }
+      }
+    ]
   },
   plugins: [
     new HtmlWebpackPlugin({
