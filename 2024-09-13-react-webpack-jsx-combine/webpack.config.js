@@ -4,7 +4,7 @@ const TerserPlugin = require('terser-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 
 module.exports = {
-  // mode: 'development',
+  mode: 'development',
   // mode: 'production', // 使用生产模式
   entry: './src/index.jsx', // 入口文件
   output: {
@@ -12,6 +12,7 @@ module.exports = {
     filename: '[name].[contenthash].js', // 使用内容哈希生成文件名
     path: path.resolve(__dirname, 'build'),
     publicPath: '/', // 使得应用能够正确地加载资源
+    assetModuleFilename: "images/[hash][ext]"
   },
   module: {
      rules: [
@@ -25,6 +26,14 @@ module.exports = {
             }
          }
        },
+      {
+        test: /\.(png|jpg|svg|ico)$/,
+        type: "asset"
+      },
+      {
+        test: /(manifest.json|robots.txt)$/,
+        type: "asset"
+      }
      ],
 //    rules: [
 //      {
@@ -41,6 +50,8 @@ module.exports = {
     new CleanWebpackPlugin(), // 在每次构建前清理 build 文件夹
     new HtmlWebpackPlugin({
       template: './public/index.html', // HTML 模板
+      favicon: './public/favicon.ico',
+      // manifest: './public/manifest.json'
     }),
   ],
   optimization: {
