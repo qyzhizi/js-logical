@@ -509,3 +509,7 @@ video {
 .underline {
   text-decoration-line: underline;
 }
+
+.custom-class {
+    background-color: #f0f0f0;
+}
