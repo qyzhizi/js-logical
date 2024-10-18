@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>重定向示例</title>
+</head>
+<body>
+    <h1>欢迎来到重定向示例页面</h1>
+    <button id="redirectBtn">点击这里进行重定向</button>
+
+    <script>
+        document.getElementById('redirectBtn').addEventListener('click', function() {
+            window.location.href = '/redirect'; // 调用后端重定向路由
+        });
+    </script>
+</body>
+</html>
