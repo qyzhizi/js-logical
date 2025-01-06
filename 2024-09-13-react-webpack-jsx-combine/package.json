@@ -4,17 +4,21 @@
   "main": "index.js",
   "scripts": {
     "build": "webpack --mode development",
-    "dev": "webpack serve --mode development"
+    "dev": "webpack serve --mode development",
+    "server": "http-server ./build"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "http-server": "^14.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@babel/cli": "^7.26.4",
+    "@babel/core": "^7.26.0",
     "@babel/preset-env": "^7.25.4",
     "@babel/preset-react": "^7.24.7",
     "babel-loader": "^9.1.3",
