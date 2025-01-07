@@ -71,8 +71,7 @@ function Contact() {
     return (
         <div>
             <h2 className="text-2xl mb-10">Contact me</h2>
-            <p className="text-lg">Email: <a href="mailto:someone@somewhere.gone"
-                                             className="underline text-blue-700 leading-relaxed">someone@somewhere.gone</a>
+            <p className="text-lg">Email: <a href="mailto:someone@somewhere.gone" className="underline text-blue-700 leading-relaxed">someone@somewhere.gone</a>
             </p>
         </div>
     )
