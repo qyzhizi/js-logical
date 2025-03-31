@@ -6,7 +6,7 @@ async function fetchGitHubUserInfo(accessToken) {
     try {
         const response = await fetch(userUrl, {
             headers: {
-                "Authorization": `token ${accessToken}`
+                "Authorization": `Bearer ${accessToken}`
             }
         });
         if (!response.ok) {

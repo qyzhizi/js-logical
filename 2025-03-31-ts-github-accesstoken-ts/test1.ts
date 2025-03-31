@@ -4,7 +4,7 @@ export async function fetchGitHubUserInfo(accessToken: string): Promise<any> {
     try {
       const response = await fetch(userUrl, {
         headers: {
-          "Authorization": `token ${accessToken}`
+          "Authorization": `Bearer ${accessToken}`
         }
       });
   
