@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>上传 JSON 文件到坚果云</title>
+</head>
+<body>
+  <h2>上传 JSON 文件到坚果云 WebDAV</h2>
+  <input type="file" id="fileInput" accept=".json" />
+  <br><br>
+  <input type="text" id="username" placeholder="坚果云用户名（邮箱）">
+  <input type="password" id="password" placeholder="密码或应用专用密码">
+  <br><br>
+  <input type="text" id="remotePath" placeholder="远程路径，例如 test.json">
+  <br><br>
+  <button onclick="upload()">上传</button>
+
+  <script>
+    async function upload() {
+      const fileInput = document.getElementById('fileInput');
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const remotePath = document.getElementById('remotePath').value;
+
+      if (!fileInput.files.length || !username || !password || !remotePath) {
+        alert("请填写所有字段并选择文件。");
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const fileName = file.name;
+      console.log("文件名是：", fileName);
+      const fileContent = await file.text(); // 读取文件内容
+      const body = JSON.stringify({
+        fileContent: fileContent,  // 推荐是字符串
+        fileName: fileName
+      });
+
+      const url = `/upload?remotePath=${encodeURIComponent(remotePath)}`;
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'Basic ' + btoa(username + ':' + password),
+          'Content-Type': 'application/json'
+        },
+        body: body
+      });
+
+      if (response.ok) {
+        alert('上传成功！');
+      } else {
+        alert('上传失败，状态码：' + response.status);
+      }
+    }
+  </script>
+</body>
+</html>
