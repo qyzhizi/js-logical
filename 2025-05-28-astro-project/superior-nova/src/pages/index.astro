@@ -1,11 +1,17 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import HelloReact from '../components/HelloReact.jsx';
 ---
 
-<Layout>
-	<Welcome />
-</Layout>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Astro 示例页面</title>
+  </head>
+  <body>
+    <h1>默认纯静态 HTML 渲染（无交互）</h1>
+    <HelloReact />
+
+    <h1>开启客户端交互（加载 React JS）</h1>
+    <HelloReact client:load />
+  </body>
+</html>
