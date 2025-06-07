@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HTMX Hello World</title>
+  <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+</head>
+<body>
+  <h1>HTMX Hello World Demo (静态加载)</h1>
+
+  <button hx-get="hello.html" hx-target="#message" hx-swap="innerHTML">
+    点击显示 Hello World
+  </button>
+
+  <button hx-trigger="click" 
+    hx-on="click: document.getElementById('message').innerHTML = ''">
+    清空消息
+  </button>
+
+  <div id="message"></div>
+</body>
+</html>

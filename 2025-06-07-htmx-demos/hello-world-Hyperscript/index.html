@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HTMX + Hyperscript Demo</title>
+  <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+  <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
+  <style>
+    .highlight {
+      background-color: yellow;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>HTMX + Hyperscript Demo</h1>
+
+  <button 
+  hx-get="hello.html" 
+  hx-target="#message" 
+  hx-swap="innerHTML"
+  _="on click remove .hidden from #message 
+    then add .highlight to #message 
+    then wait 3s 
+    then remove .highlight from #message 
+    then add .hidden to #message"
+>
+  点击显示 Hello World（自动隐藏）
+</button>
+
+
+
+  <!-- 2. 清空消息 -->
+  <button _="on click set #message's innerHTML to '' remove .hidden from #message">
+    清空消息
+  </button>
+
+  <!-- 3. 禁用按钮演示 -->
+  <button _="on click add @disabled wait 1s then remove @disabled">
+    临时禁用我 1 秒
+  </button>
+
+  <!-- 显示消息的区域 -->
+  <div id="message" class=""></div>
+</body>
+</html>
