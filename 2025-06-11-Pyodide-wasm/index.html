@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pyodide-CodeMirror5-python</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.13/lib/codemirror.css" />
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.13/lib/codemirror.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.13/mode/python/python.js"></script>
+  <style>
+    .CodeMirror {
+      height: 300px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+<h2>🧪 Pyodide 在线 Python Demo, 使用 CodeMirror 5 作为代码编辑器</h2>
+
+<textarea id="code" name="code">
+print("Hello from Pyodide!")
+for i in range(5):
+    print("Number", i)
+</textarea>
+
+<button id="runBtn">运行代码</button>
+
+<pre id="output" style="background:#000; color:#0f0; padding:10px; height:300px; overflow:auto;"></pre>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+<script>
+  // 初始化 CodeMirror 编辑器
+  const editor = CodeMirror.fromTextArea(document.getElementById('code'), {
+    mode: 'python',
+    lineNumbers: true,
+    indentUnit: 4,
+    tabSize: 4,
+    indentWithTabs: false,
+  });
+
+  let pyodideReadyPromise = loadPyodide();
+  const runBtn = document.getElementById('runBtn');
+  const outputEl = document.getElementById('output');
+
+  runBtn.onclick = async () => {
+    outputEl.textContent = '⏳ 加载 Pyodide 并运行代码...';
+    const pyodide = await pyodideReadyPromise;
+
+    try {
+      outputEl.textContent = ''; // 清空输出
+      pyodide.setStdout({
+        batched: (s) => { outputEl.textContent += s + '\n'; }
+      });
+      pyodide.setStderr({
+        batched: (s) => { outputEl.textContent += s + '\n'; }
+      });
+      await pyodide.runPythonAsync(editor.getValue());
+    } catch (err) {
+      outputEl.textContent = '❌ 错误:\n' + err;
+    }
+  };
+</script>
+
+</body>
+</html>

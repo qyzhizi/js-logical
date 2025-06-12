@@ -1,0 +1,72 @@
+<!-- This is a simple HTML page that uses Pyodide to run Python code in the browser.
+     It includes a text area for input, a button to run the code, and an output area. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pyodide Demo</title>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #f5f5f5; }
+    textarea { width: 100%; height: 150px; font-family: monospace; }
+    #output { white-space: pre; background: #fff; padding: 10px; border: 1px solid #ccc; }
+    button { padding: 10px 20px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+  <h2>🧪 Pyodide 在线 Python Demo</h2>
+  <p>在下方输入 Python 代码，点击“运行”来执行。</p>
+
+  <textarea id="code">
+print("Hello from Pyodide!")
+for i in range(5):
+    print("Number", i)
+  </textarea>
+
+  <br>
+  <button onclick="runCode()">运行 Python 代码</button>
+
+  <h3>🔍 输出：</h3>
+  <pre id="output">（运行结果将显示在这里）</pre>
+
+
+<script>
+  let pyodideReadyPromise = loadPyodide();
+
+  async function runCode() {
+    const outputDiv = document.getElementById("output");
+    const code = document.getElementById("code").value;
+    outputDiv.textContent = "⏳ 正在运行，请稍候...";
+
+    const pyodide = await pyodideReadyPromise;
+
+    try {
+      outputDiv.textContent = ""; // 清空旧输出
+
+      // 设置 stdout/stderr
+      pyodide.setStdout({
+        batched: (s) => {
+        //   console.log("STDOUT:", JSON.stringify(s)); // 调试输出
+          outputDiv.textContent += s + "\n"; // 手动添加换行
+        }
+      });
+
+      pyodide.setStderr({
+        batched: (s) => {
+        //   console.log("STDERR:", JSON.stringify(s)); // 调试输出
+          outputDiv.textContent += s + "\n"; // 手动添加换行
+        }
+      });
+
+      await pyodide.runPythonAsync(code);
+    } catch (err) {
+      outputDiv.textContent = `❌ 错误:\n${err}`;
+    }
+  }
+</script>
+
+
+
+</body>
+</html>
