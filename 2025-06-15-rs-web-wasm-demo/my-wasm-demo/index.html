@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>WASM Input Demo</title>
+</head>
+<body>
+  <h1>Rust + WebAssembly Demo</h1>
+
+  <input type="text" id="name-input" placeholder="Enter your name" />
+  <button id="greet-button">Greet</button>
+
+  <p id="output">...</p>
+
+  <script type="module">
+    import init, { greet } from './pkg/my_wasm_demo.js';
+
+    init().then(() => {
+      const input = document.getElementById("name-input");
+      const button = document.getElementById("greet-button");
+      const output = document.getElementById("output");
+
+      button.addEventListener("click", () => {
+        const name = input.value.trim();
+        if (name) {
+          const message = greet(name);
+          output.textContent = message;
+        } else {
+          output.textContent = "Please enter a name.";
+        }
+      });
+    });
+  </script>
+</body>
+</html>
