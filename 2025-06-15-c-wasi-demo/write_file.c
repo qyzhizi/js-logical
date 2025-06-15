@@ -1,18 +1,17 @@
 #include <stdio.h>
 
 int main() {
-    const char *filename = "/output.txt";
-    printf("Trying to open file: %s\n", filename);
+    printf("File written to do.\n");
+    FILE *fp = fopen("data/hello_world_file.txt", "w");
 
-    FILE *fp = fopen(filename, "w");
     if (fp == NULL) {
         perror("Failed to open file");
         return 1;
     }
 
-    fprintf(fp, "Hello, WASI!\n");
+    fprintf(fp, "Hello, WASM world!\n");
     fclose(fp);
 
-    printf("File write successful.\n");
+    printf("File written successfully.\n");
     return 0;
 }
