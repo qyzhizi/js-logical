@@ -1,0 +1,4 @@
+[workspace]
+members = ["logfn_macro", "logfn_user"]
+resolver = "2"
+
