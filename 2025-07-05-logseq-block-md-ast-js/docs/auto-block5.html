@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Logseq Block 编辑器（结构化缩进版）</title>
+  <style>
+    body { font-family: sans-serif; padding: 1em; }
+    textarea {
+      width: 100%; height: 300px; font-family: monospace; font-size: 14px;
+      padding: 1em; border: 1px solid #ccc; margin-bottom: 1em;
+    }
+    pre {
+      background: #f5f5f5; padding: 1em; border: 1px solid #ccc;
+      overflow: auto; white-space: pre-wrap; word-break: break-word;
+    }
+    .block-id {
+      color: #999; font-size: 0.9em;
+    }
+    .clickable {
+      cursor: pointer; text-decoration: underline; color: blue;
+    }
+  </style>
+</head>
+<body>
+  <h2>Logseq Block 编辑器</h2>
+  <textarea id="editor" placeholder="- 示例 Block\n  - 子项"></textarea>
+
+  <h3>AST 输出（点击跳转）</h3>
+  <pre id="astOutput"></pre>
+
+  <script>
+    const textarea = document.getElementById("editor");
+    const astOutput = document.getElementById("astOutput");
+
+    let astRoot = [];
+    let lineMap = new Map();
+    let previousLines = [];
+
+    // ✅【新增】根据 lineMap 获取缩进
+    function getIndentFromLineMap(lineIndex, isShift) {
+      const info = lineMap.get(lineIndex);
+      if (!info) return ""; // fallback
+      const node = info.node;
+
+      let depth = 0;
+      let current = node;
+      while (current && lineMap.get(current.startLine)?.parent) {
+        depth++;
+        current = lineMap.get(current.startLine)?.parent;
+      }
+
+      // 一个缩进单位为两个空格
+      const baseIndent = " ".repeat(depth * 2);
+      return isShift ? baseIndent + "  " : baseIndent;
+    }
+
+    // ✅结构化缩进：Enter/Shift+Enter 自动补全
+    textarea.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+
+      const cursor = textarea.selectionStart;
+      const lines = textarea.value.split("\n");
+
+      // 当前光标所在行
+      let charCount = 0, lineIndex = 0;
+      for (; lineIndex < lines.length; lineIndex++) {
+        charCount += lines[lineIndex].length + 1;
+        if (charCount > cursor) break;
+      }
+
+      // ✅ 使用结构化缩进逻辑
+      let insertText = "\n" + getIndentFromLineMap(lineIndex, e.shiftKey);
+      if (!e.shiftKey) insertText += "- ";
+
+      const before = textarea.value.slice(0, cursor);
+      const after = textarea.value.slice(cursor);
+      const newCursor = cursor + insertText.length;
+
+      textarea.value = before + insertText + after;
+      textarea.selectionStart = textarea.selectionEnd = newCursor;
+
+      textarea.dispatchEvent(new Event("input"));
+    });
+
+    // AST 构建 + diff 更新
+    textarea.addEventListener("input", () => {
+      const lines = textarea.value.split("\n");
+      const changedLine = findFirstDiffLine(previousLines, lines);
+
+      if (astRoot.length === 0 || changedLine === -1) {
+        astRoot = buildASTWithLineMap(lines);
+      } else {
+        astRoot = patchAST(astRoot, lines, changedLine);
+      }
+
+      previousLines = lines;
+      astOutput.innerHTML = renderAST(astRoot);
+    });
+
+    function findFirstDiffLine(oldLines, newLines) {
+      const len = Math.min(oldLines.length, newLines.length);
+      for (let i = 0; i < len; i++) {
+        if (oldLines[i] !== newLines[i]) return i;
+      }
+      return oldLines.length !== newLines.length ? len : -1;
+    }
+
+    function buildASTWithLineMap(lines) {
+      const root = [];
+      const stack = [{ indent: -1, children: root, node: null }];
+      lineMap.clear();
+
+      let currentNode = null;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const match = line.match(/^(\s*)- (.*)$/);
+
+        if (match) {
+          if (currentNode) currentNode.endLine = i - 1;
+
+          const indent = match[1].length;
+          const node = {
+            id: crypto.randomUUID(),
+            content: match[2],
+            children: [],
+            startLine: i,
+            endLine: i,
+          };
+
+          while (stack.length && indent <= stack[stack.length - 1].indent) {
+            stack.pop();
+          }
+
+          const parent = stack[stack.length - 1];
+          parent.children.push(node);
+          lineMap.set(i, {
+            node,
+            parent: parent.node,
+            indexInParent: parent.children.length - 1
+          });
+
+          stack.push({ indent, children: node.children, node });
+          currentNode = node;
+        } else if (currentNode) {
+          currentNode.content += "\n" + line.trim();
+          currentNode.endLine = i;
+          lineMap.set(i, {
+            node: currentNode,
+            parent: stack[stack.length - 2]?.node,
+            indexInParent: stack[stack.length - 2]?.children.length - 1
+          });
+        }
+      }
+
+      return root;
+    }
+
+    function patchAST(astRoot, lines, changedLine) {
+      const affected = lineMap.get(changedLine);
+      if (!affected) return buildASTWithLineMap(lines);
+
+      const { node, parent, indexInParent } = affected;
+      const patchLines = lines.slice(node.startLine, node.endLine + 1);
+      const patchAST = buildASTWithLineMap(patchLines);
+
+      if (parent) {
+        parent.children.splice(indexInParent, 1, ...patchAST);
+      } else {
+        astRoot.splice(indexInParent, 1, ...patchAST);
+      }
+      return astRoot;
+    }
+
+    function renderAST(nodes, depth = 0) {
+      let html = "";
+      for (const node of nodes) {
+        html += `${"&nbsp;".repeat(depth * 4)}- <span class="clickable" onclick="jumpToLine('${node.id}')">${escapeHtml(node.content)}</span> <span class="block-id">[${node.id.slice(0, 8)}]</span><br/>`;
+        html += renderAST(node.children, depth + 1);
+      }
+      return html;
+    }
+
+    function jumpToLine(blockId) {
+      const lines = textarea.value.split("\n");
+      for (let [line, ref] of lineMap.entries()) {
+        if (ref.node.id === blockId) {
+          textarea.focus();
+          const before = lines.slice(0, line).join("\n").length;
+          textarea.selectionStart = textarea.selectionEnd = before + lines[line].length;
+          return;
+        }
+      }
+    }
+
+    function escapeHtml(text) {
+      return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // 初始化
+    textarea.dispatchEvent(new Event("input"));
+  </script>
+</body>
+</html>

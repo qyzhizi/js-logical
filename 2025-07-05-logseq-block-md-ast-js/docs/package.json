@@ -1,0 +1,14 @@
+{
+  "name": "2025-07-05-logseq-block-md-ast-js",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "muti-line": "node multiLinesBlock.js",
+    "muti-line-2": "node multiLinesBlock2.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

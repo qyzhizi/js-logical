@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>增量更新 AST 编辑器</title>
+  <style>
+    body { font-family: monospace; padding: 1em; }
+    #editor {
+      border: 1px solid #ccc;
+      padding: 8px;
+      width: 600px;
+      height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap; /* 保留换行，但更灵活 */
+      tab-size: 4; /* 设置 Tab 为 4 个空格的宽度 */
+    }
+    .line {
+      outline: none;
+      min-height: 1.2em;
+    }
+    .line:empty::before {
+      content: ""; /* 移除 \u200B，设置为空字符串 */
+      display: inline-block; /* 确保空行有高度 */
+      min-height: 1.2em; /* 保持行高 */
+    }
+    pre {
+      background: #f9f9f9;
+      padding: 1em;
+    }
+  </style>
+</head>
+<body>
+
+<h2>增量 AST 编辑器</h2>
+<div id="editor" contenteditable="true" tabindex="0" role="textbox" spellcheck="false"></div>
+<button onclick="renderAST()">输出 AST</button>
+
+<h3>AST 输出</h3>
+<pre id="astOutput"></pre>
+
+<script type="module">
+  import { setupEditorSync } from './setupEditorSync.js';
+  const editor = document.getElementById("editor");
+  const astOutput = document.getElementById("astOutput");
+
+  let astRoot = [];
+  const idMap = new Map();     // id => { node, parent }
+  const indentStack = [];      // 层级 => 最近节点
+
+  // 创建一行带唯一 ID 的 DOM
+  function createLine(text = "", id = crypto.randomUUID()) {
+    const div = document.createElement("div");
+    div.className = "line";
+    div.contentEditable = "true";
+    div.textContent = text;
+    div.dataset.id = id;
+    return div;
+  }
+  // 初始化内容（演示用）
+  function initEditor() {
+    const lines = [
+      "- 示例 Block",
+      "\t- 子项 1",
+      "\t\t- 子子项",
+      "\t- 子项 2",
+      "\t  子项 2 continue 1",
+      "\t  子项 2 continue 2",
+      "普通段落1",
+      "- 第二个 Block",
+      "\t- 子项 1",
+      "\t  子项 1 continue 1",
+      "\t- 子项 2",
+      "普通段落2",
+      "普通段落3",
+    ];
+    editor.innerHTML = "";
+    astRoot = [];
+    idMap.clear();
+    indentStack.length = 0;
+
+    lines.forEach((text, i) => {
+      const div = createLine(text);
+      editor.appendChild(div);
+      insertAstNodeAtByOrder(i, text, div.dataset.id); // 直接构建 AST
+    });
+
+    setCaretToEnd(editor.lastChild);
+    renderAST();
+  }
+
+  function getIndentForLine(text) {
+    const match = text.match(/^(\t*)- /);
+    if (match === null) return null; // 如果没有匹配到，返回 null
+    return match[1].length;
+  }
+  // 获取 continue 节点的缩进层级
+  function getIndentForNoBlockLine(text) {
+    const match = text.match(/^(\t*) {2}/);
+    if (match === null) return null; // 如果没有匹配到，返回 null
+    return (match[1].length); 
+  }
+
+
+  function RandomInsertAstContinueNode(index, line, id, content, indentCount) {
+    let continueIndex = 1;
+    let currentIndex = index;
+    let lineId = line.dataset.id;
+    let currentAstNode = idMap.get(lineId).node;
+    // 如果当前输入 shift+enter 的行是 continue 节点，在 idmap获取其所属的父节点, 否则就是当前节点
+    const belongToAstNode = currentAstNode.lineContinue ? idMap.get(lineId).parent : currentAstNode;
+    let baseNode = currentAstNode;
+
+    // 获取即将插入的 continue 节点在 belongToAstNode.continueChildren 中的索引
+    if (currentAstNode.lineContinue){
+      continueIndex = belongToAstNode.continueChildren.indexOf(currentAstNode) + 1;
+    }
+    // indentCount 是 continueNode 所属 Node 在 editor的缩进层级
+    // const continueNode = { id, content, indentCount , lineContinue: true };
+    const continueNode = createAstNode({
+      id,
+      type:TextType.CONTINUE,
+      content: content.trim(),
+      indentCount
+    });
+    // continueIndex 是 continueNode 在 belongToAstNode.continueChildren 中的索引
+    belongToAstNode.continueChildren.splice(continueIndex, 0, continueNode);
+    idMap.set(id, { node:continueNode, parent:belongToAstNode });
+  }
+
+  function insertAstParagraphNodeAt(index, line, id, content, indentCount) {
+    // index 是希望插入在当前行之后的在 editor 的位置
+    // index -1 是当前在 editor 的位置
+    const currentIndex = index - 1;
+    
+    // 获取当前Ast节点
+    const currentAstNode = idMap.get(line.dataset.id)?.node;
+    if (!currentAstNode) {
+      console.error("currentAstNode, 当前行未找到对应的 AST 节点");
+      return;
+    }
+    const node = createAstNode({ 
+      id,
+      type:TextType.PARAGRAPH,
+      content,
+      indentCount}
+    )
+
+    // 获取在 astRoot 中的索引
+    const astRootIndex = astRoot.findIndex(n => n.id === currentAstNode.id);
+    if (astRootIndex === -1) {
+      console.error("当前 AST 节点未找到在 astRoot 中的索引");
+      return;
+    }
+    astRoot.splice(astRootIndex + 1, 0, node);
+    idMap.set(id, { node, parent: null });
+    
+  }
+
+  function RandomInsertAstBlockNodeAt(index, line, id, content, indentCount) {
+    // index 是希望插入在当前行之后的在 editor 的位置
+    // index -1 是当前在 editor 的位置
+    const currentIndex = index - 1;
+    
+    // 获取当前Ast节点
+    const currentAstNode = idMap.get(line.dataset.id)?.node;
+    if (!currentAstNode) {
+      console.error("currentAstNode, 当前行未找到对应的 AST 节点");
+      return;
+    }
+    const currentAstNodeParent = idMap.get(line.dataset.id)?.parent;
+    const node = createAstNode({ 
+      id,
+      type:TextType.BLOCK,
+      content,
+      indentCount}
+    )
+
+    if (!currentAstNodeParent) {
+      // 获取在 astRoot 中的索引
+      const astRootIndex = astRoot.findIndex(n => n.id === currentAstNode.id);
+      if (astRootIndex === -1) {
+        console.error("当前 AST 节点未找到在 astRoot 中的索引");
+        return;
+      }
+      astRoot.splice(astRootIndex + 1, 0, node);
+      idMap.set(id, { node, parent: null });
+    } else {
+    // 获取 currentAstNode 在 currentAstNodeParent.children 中的索引
+    const currentAstNodeIndex = currentAstNodeParent.children.indexOf(currentAstNode)
+    currentAstNodeParent.children.splice(currentAstNodeIndex + 1, 0, node);
+    idMap.set(id, { node, parent: currentAstNodeParent });
+    }
+  }
+
+  function createAstNode({ id, type, content, indentCount}) {
+    const base = {
+      id,
+      type,
+      content: content,
+      indentCount
+    };
+    if (type === TextType.BLOCK) {
+      return { ...base, children: [], continueChildren: [] };
+    } else if (type === TextType.PARAGRAPH) {
+      return { ...base };
+    } else if (type === TextType.CONTINUE) {
+      // continue 节点只需要标识 lineContinue
+      return { ...base, "lineContinue": true };
+    }
+  }
+
+  // 用于标识上次插入的节点类型
+  let lastWasParagraph = false; // 上次添加Paragraph段落标志
+  const TextType = {
+    PARAGRAPH: 'paragraph',
+    BLOCK: 'block',
+    CONTINUE: 'continue'
+  };
+
+  function insertAstNodeAtByOrder(index, content, id) {
+    const indentCount = getIndentForLine(content)
+    const noBlockIndentCount = indentCount === null ? getIndentForNoBlockLine(content) : null;
+
+    if (isContinueLineByOrder(indentCount, noBlockIndentCount)) {
+      return handleContinueNodeByOrder(index, content, id);
+    }
+
+    if (isParagraphByOrder(indentCount, noBlockIndentCount)) {
+      return handleParagraphNodeByOrder(content, id);
+    }
+
+    return handleBlockNodeByOrder(indentCount, content, id);
+  }
+
+  function isContinueLineByOrder(indentCount, noBlockIndentCount) {
+    return indentCount === null && noBlockIndentCount == indentStack.length - 1;
+  }
+
+  function isParagraphByOrder(indentCount, noBlockIndentCount) {
+    return indentCount === null && (noBlockIndentCount !== indentStack.length - 1);
+  }
+ 
+  function handleContinueNodeByOrder(index, content, id) {
+    const continueIndent = getIndentForNoBlockLine(content);
+    if (lastWasParagraph) {
+      throw new Error("上次是段落，无法插入 continue 节点，请检查内容格式");
+    }
+
+    const parent = indentStack[continueIndent];
+    if (!parent) {
+      throw new Error("无法找到 continue 节点的父节点，请检查缩进格式");
+    }
+
+    const node = createAstNode({
+      id,
+      type:TextType.CONTINUE,
+      content: content.trim(),
+      indentCount: continueIndent}
+    );
+
+    parent.continueChildren.push(node);
+    idMap.set(id, { node, parent });
+    lastWasParagraph = false;
+  }
+  
+  function handleParagraphNodeByOrder(content, id) {
+    const node = createAstNode({
+      id,
+      type:TextType.PARAGRAPH,
+      content: content.trim(),
+      indentCount: 0 }
+    );
+    astRoot.push(node);
+    idMap.set(id, { node, parent: null });
+    lastWasParagraph = true;
+  }
+
+  function handleBlockNodeByOrder(indentCount, content, id) {
+    if (lastWasParagraph && indentCount !== 0) {
+      throw new Error("段落后不能插入多级 block 节点");
+    }
+    const node = createAstNode({ 
+      id, 
+      type:TextType.BLOCK, 
+      content: content.replace(/^\s*- /, ""), 
+      indentCount }
+    );
+
+    const parent = indentCount > 0 ? indentStack[indentCount - 1] : null;
+    if (parent) {
+      parent.children.push(node);
+    } else {
+      astRoot.push(node);
+    }
+
+    idMap.set(id, { node, parent });
+    indentStack[indentCount] = node;
+    indentStack.length = indentCount + 1;
+    lastWasParagraph = false;
+  }
+  
+  function setCaretToEnd(node) {
+    const range = document.createRange();
+    const sel = window.getSelection();
+    range.selectNodeContents(node);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function getCurrentLineIndex() {
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return 0;
+    let node = sel.anchorNode;
+    if (node.nodeType === 3) node = node.parentNode;
+    while (node && node !== editor && !node.classList.contains("line")) {
+      node = node.parentNode;
+    }
+    if (!node || node === editor) return 0;
+    return Array.from(editor.children).indexOf(node);
+  }
+
+  function getCurrentAstNode() {
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return null;
+    let node = sel.anchorNode;
+    if (!node) return null;
+    if (node.nodeType === 3) node = node.parentNode;
+    while (node && node !== editor && !node.classList.contains("line")) {
+      node = node.parentNode;
+    }
+    if (!node || node === editor) return null;
+    const id = node.dataset.id;
+    return idMap.get(id)?.node || null;
+  }
+
+  function renderAST() {
+    astOutput.textContent = JSON.stringify(astRoot, null, 2);
+  }
+
+  function getInitialLineContent(
+    {indentCount,
+      isContinueLine=false, 
+      isParagraphLine=false}={}) {
+    // 把一个值转换为整数, 效率高
+    const safeIndentCount = Math.max(0, indentCount | 0); 
+    const baseIndent = "\t".repeat(safeIndentCount);
+    if (isContinueLine) {
+      return baseIndent + "  "; // continue 行的初始内容
+    } else if (isParagraphLine) {
+      return baseIndent; // 段落行的初始内容
+    } else {
+      return baseIndent + "- "; // block 行的初始内容
+    }
+  }
+
+  // 监听 Enter 插入行 + 增量更新 AST
+  editor.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const index = getCurrentLineIndex();
+    const line = editor.children[index];
+    const text = line.textContent || "";
+    const currentAstNodeType = idMap.get(line.dataset.id)?.node?.type;
+    let indentCount = getIndentForLine(text);
+    if (indentCount === null) {
+      indentCount = getIndentForNoBlockLine(text);
+    } 
+    const newId = crypto.randomUUID();
+
+    let editorInitialLineContent;
+    if (e.shiftKey || currentAstNodeType === TextType.CONTINUE){
+        editorInitialLineContent = getInitialLineContent({indentCount, isContinueLine:true}); // 新continue 行的初始内容
+    } else if(currentAstNodeType === TextType.PARAGRAPH){
+        editorInitialLineContent = getInitialLineContent({indentCount, isParagraphLine:true}); // 新段落行的初始内容
+    } else if (currentAstNodeType === TextType.BLOCK) {
+      // 如果是 block 行，继续使用当前行的缩进
+      editorInitialLineContent = getInitialLineContent({indentCount}); // 新block行的初始内容
+    }
+
+    // 在 editor 中插入新行
+    const newLine = createLine(editorInitialLineContent, newId);
+    const next = line.nextSibling;
+    if (next) editor.insertBefore(newLine, next);
+    else editor.appendChild(newLine);
+    setCaretToEnd(newLine);
+
+    if (e.shiftKey || currentAstNodeType === TextType.CONTINUE) {
+      // 在 AST 中插入 continue 节点
+      RandomInsertAstContinueNode(
+        index,
+        line,
+        newId,
+        "",
+        indentCount,
+      );
+    } else if (currentAstNodeType === TextType.PARAGRAPH) {
+      // 在 AST 中插入段落节点
+      insertAstParagraphNodeAt(index + 1, line, newId, "", indentCount);
+    } else if(currentAstNodeType === TextType.BLOCK) {
+      // ✅ 增量插入 AST
+      RandomInsertAstBlockNodeAt(index + 1, line, newId, "", indentCount);
+    }
+    renderAST(); // 展示 AST
+  });
+
+  // 实时内容同步：用户在修改时同步 AST 节点的 content 字段
+  // 启动编辑器监听
+  setupEditorSync(editor, idMap, renderAST, { debounceDelay: 300 });
+  
+  // 初始化编辑器内容
+  initEditor();
+</script>
+
+</body>
+</html>
