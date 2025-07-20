@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>优化后的AST编辑器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+            line-height: 1.6;
+            color: #333;
+            background: #f8f9fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .main-content {
+            display: flex;
+            min-height: 600px;
+        }
+
+        .editor-panel {
+            flex: 1;
+            padding: 20px;
+            border-right: 1px solid #eee;
+        }
+
+        .ast-panel {
+            flex: 1;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .editor {
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            padding: 16px;
+            min-height: 400px;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.5;
+            outline: none;
+            transition: border-color 0.2s ease;
+            white-space: pre-wrap; /* 保留换行，但更灵活 */
+            tab-size: 4; /* 设置 Tab 为 4 个空格的宽度 */
+        }
+
+        .editor:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+        }
+
+        .line {
+            min-height: 21px;
+            outline: none;
+            position: relative;
+        }
+
+        .line:empty::before {
+            content: '';
+            display: inline-block;
+            width: 1px;
+            height: 21px;
+        }
+
+        .line.block {
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .line.continue {
+            color: #7f8c8d;
+            font-style: italic;
+        }
+
+        .line.paragraph {
+            color: #34495e;
+        }
+
+        .controls {
+            margin-bottom: 16px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+
+        .ast-output {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 16px;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 12px;
+            line-height: 1.4;
+            overflow-y: auto;
+            max-height: 400px;
+            white-space: pre-wrap;
+        }
+
+        .stats {
+            margin-top: 16px;
+            padding: 12px;
+            background: #ecf0f1;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+
+        .help {
+            margin-top: 16px;
+            padding: 12px;
+            background: #e8f5e8;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #27ae60;
+        }
+
+        .help ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .help li {
+            margin-bottom: 4px;
+        }
+
+        .help kbd {
+            background: #34495e;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>优化后的AST编辑器</h1>
+            <p>支持层级缩进的智能文本编辑器</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="editor-panel">
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="astManager.renderAST()">更新AST</button>
+                    <button class="btn btn-secondary" onclick="editorManager.clear()">清空</button>
+                    <button class="btn btn-secondary" onclick="editorManager.loadSample()">加载示例</button>
+                </div>
+                
+                <div id="editor" class="editor" contenteditable="true" spellcheck="false"></div>
+                
+                <div class="help">
+                    <h4>快捷键说明</h4>
+                    <ul>
+                        <li><kbd>Enter</kbd> 新建同级节点</li>
+                        <li><kbd>Shift+Enter</kbd> 新建继续节点</li>
+                        <li><kbd>Tab</kbd> 增加缩进</li>
+                        <li><kbd>Shift+Tab</kbd> 减少缩进</li>
+                        <li><kbd>-</kbd> 开头创建块节点</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="ast-panel">
+                <h3>AST输出</h3>
+                <div id="astOutput" class="ast-output"></div>
+                <div id="stats" class="stats"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 常量定义
+        const NODE_TYPES = {
+            BLOCK: 'block',
+            CONTINUE: 'continue',
+            PARAGRAPH: 'paragraph'
+        };
+
+        const INDENT_CHAR = '\t';
+        const BLOCK_PREFIX = '- ';
+        const CONTINUE_PREFIX = '  ';
+
+        // 工具函数
+        const Utils = {
+            // 生成唯一ID
+            generateId: () => crypto.randomUUID(),
+            
+            // 获取缩进级别
+            getIndentLevel: (text) => {
+                const match = text.match(/^(\t*)/);
+                return match ? match[1].length : 0;
+            },
+            
+            // 检查是否为块节点
+            isBlockLine: (text) => {
+                const match = text.match(/^(\t*)- /);
+                return match ? match[1].length : null;
+            },
+            
+            // 检查是否为继续节点
+            isContinueLine: (text) => {
+                const match = text.match(/^(\t*)(?!-)/);
+                return match ? match[1].length : null;
+            },
+            
+            // 检查是否为空格缩进
+            hasSpaceIndent: (text) => {
+                const match = text.match(/^( +)/);
+                return match ? match[1].length : null;
+            },
+            
+            // 防抖函数
+            debounce: (func, wait) => {
+                let timeout;
+                return function executedFunction(...args) {
+                    const later = () => {
+                        clearTimeout(timeout);
+                        func(...args);
+                    };
+                    clearTimeout(timeout);
+                    timeout = setTimeout(later, wait);
+                };
+            },
+            
+            // 设置光标到末尾
+            setCaretToEnd: (element) => {
+                const range = document.createRange();
+                const selection = window.getSelection();
+                range.selectNodeContents(element);
+                range.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+        };
+
+        // AST节点类
+        class ASTNode {
+            constructor({ id, styleType, type, content, indentLevel = 0 }) {
+                this.id = id;
+                this.type = type;
+                this.styleType = styleType; // 样式类型
+                this.content = content;
+                this.indentLevel = indentLevel;
+                this.children = [];
+                this.continueChildren = [];
+                this.parent = null;
+            }
+            
+            // 添加子节点
+            addChild(node) {
+                node.parent = this;
+                this.children.push(node);
+            }
+            // 在某个位置插入子节点
+            InserChildrentNode(node, index) {
+                node.parent = this;
+                if (index < 0 || index > this.children.length) {
+                    throw new Error('Index out of bounds');
+                }
+                this.children.splice(index, 0, node);
+            }
+            // 添加继续节点
+            addContinue(node) {
+                node.parent = this;
+                this.continueChildren.push(node);
+            }
+            // 在某个位置插入继续节点
+            InsertContinueNode(node, index) {
+                node.parent = this;
+                if (index < 0 || index > this.continueChildren.length) {
+                    throw new Error('Index out of bounds');
+                }
+                this.continueChildren.splice(index, 0, node);
+            }
+            
+            // 移除节点
+            remove() {
+                if (this.parent) {
+                    const parentChildren = this.parent.children;
+                    const parentContinues = this.parent.continueChildren;
+                    
+                    let index = parentChildren.indexOf(this);
+                    if (index > -1) {
+                        parentChildren.splice(index, 1);
+                    } else {
+                        index = parentContinues.indexOf(this);
+                        if (index > -1) {
+                            parentContinues.splice(index, 1);
+                        }
+                    }
+                }
+            }
+            
+            // 转换为JSON
+            toJSON() {
+                const result = {
+                    id: this.id,
+                    type: this.type,
+                    styleType: this.styleType,
+                    content: this.content,
+                    indentLevel: this.indentLevel
+                };
+
+                if (this.continueChildren.length > 0) {
+                    result.continueChildren = this.continueChildren.map(child => child.toJSON());
+                }
+                
+                if (this.children.length > 0) {
+                    result.children = this.children.map(child => child.toJSON());
+                }
+                
+                return result;
+            }
+        }
+
+        // AST管理器
+        class ASTManager {
+            constructor() {
+                this.root = [];
+                this.nodeMap = new Map();
+                this.indentStack = [];
+            }
+            clearAll(){
+                this.clearNodeMap();
+                this.clearRoot();
+                this.clearIndentStack();
+            }
+            // 清空AST
+            clearNodeMap() {
+                this.nodeMap.clear();
+            }
+            clearRoot() {
+                this.root = [];
+            }
+            clearIndentStack() {
+                this.indentStack = [];
+                this.indentStack.length = 0;
+            }
+            
+            // 创建节点
+            createNode({ id, styleType, type, content, indentLevel }) {
+                const node = new ASTNode({ id, styleType, type, content, indentLevel });
+                this.nodeMap.set(id, node);
+                return node;
+            }
+            
+            // tab 缩进或反缩进 模式下，向 AST 中插入节点
+            tabInsertNode(node){
+                const { id, styleType, type, content, indentLevel } = node;
+                if (type === NODE_TYPES.CONTINUE) {
+                    this.handleContinueNodeByTab(indentLevel, content, id);
+                } else if( type === NODE_TYPES.PARAGRAPH){
+                    this.handleParagraphNodeByTab(NODE_TYPES.PARAGRAPH, NODE_TYPES.PARAGRAPH, indentLevel, content, id);
+                } else if (type === NODE_TYPES.BLOCK) {
+                    this.handleBlockNodeByTab(indentLevel, content, id);
+                }
+            }
+            // 使用 enter 键插入节点
+            enterInsertNode(e, frontAstNodeId, toInsertLineId, initialContent, indentLevel, frontLineAstNodeType) {
+                // const toInsertLineId = toInsertLine.dataset.id
+                if ((e.shiftKey && frontLineAstNodeType === NODE_TYPES.BLOCK) || frontLineAstNodeType === NODE_TYPES.CONTINUE) {
+                    // 在 AST 中插入 continue 节点
+                    this.enterInsertAstContinueNode({frontAstNodeId, toInsertLineId, initialContent, indentLevel});
+                } else if (frontLineAstNodeType === NODE_TYPES.PARAGRAPH) {
+                    // 在 AST 中插入段落节点
+                    this.enterInsertAstParagraphNode({frontAstNodeId, toInsertLineId, initialContent, indentLevel});
+                } else if(frontLineAstNodeType === NODE_TYPES.BLOCK) {
+                    // ✅ 增量插入 AST
+                    this.enterInsertAstBlockNode({frontAstNodeId, toInsertLineId, initialContent, indentLevel});
+                }
+            }
+
+            enterInsertAstContinueNode({frontAstNodeId, toInsertLineId, initialContent, indentLevel}) {
+                let continueIndex = 0;
+                const frontAstNode = this.nodeMap.get(frontAstNodeId);
+                // 如果当前输入 shift+enter 的行是 continue 节点，在 idmap获取其所属的父节点, 否则就是当前节点
+                let parentAstNode = null;
+                if (frontAstNode.type === NODE_TYPES.BLOCK){
+                    parentAstNode = frontAstNode;
+                } else {
+                    parentAstNode = frontAstNode.parent;
+                    if (!parentAstNode) {
+                        console.error("parentAstNode, 当前行未找到对应的 AST 父节点");
+                        return;
+                    }
+                }
+                // 获取即将插入的 continue 节点在 parentAstNode.continueChildren 中的索引
+                const toInsertIndex = parentAstNode.continueChildren.indexOf(frontAstNode) + 1;
+                // }
+                const node = this.createNode({
+                    id: toInsertLineId,
+                    styleType:NODE_TYPES.CONTINUE,
+                    type:NODE_TYPES.CONTINUE,
+                    content: initialContent,
+                    indentLevel
+                });
+                parentAstNode.InsertContinueNode(node, toInsertIndex);
+            }
+
+            enterInsertAstParagraphNode({frontAstNodeId, toInsertLineId, initialContent, indentLevel, styleType, type}) {
+                if (!frontAstNodeId) {
+                    console.error("frontAstNodeId, 当前行未找到对应的 AST 节点");
+                    return;
+                }
+                const node = this.createNode({
+                    id: toInsertLineId,
+                    styleType: styleType || NODE_TYPES.PARAGRAPH,
+                    type: type || NODE_TYPES.PARAGRAPH,
+                    content: initialContent,
+                    indentLevel}
+                )
+                // 获取前面行的Ast节点
+                const frontAstNode = this.nodeMap.get(frontAstNodeId);
+                // 获取在 astRoot 中的索引
+                const toInsertAstRootIndex = this.root.findIndex(n => n.id === frontAstNode.id);
+                // 如果没有找到索引，说明当前节点是根节点
+                if (toInsertAstRootIndex ===  -1) {
+                    console.warn("当前 AST 节点未找到在 astRoot 中的索引");
+                    return;
+                }
+                // 在 astRoot 中插入节点
+                this.root.splice(toInsertAstRootIndex + 1, 0, node);
+            }
+
+            enterInsertAstBlockNode({frontAstNodeId, toInsertLineId, initialContent, indentLevel}) {
+                // 获取当前Ast节点
+                const frontAstNode = this.nodeMap.get(frontAstNodeId);
+                if (!frontAstNode) {
+                    console.error("frontAstNode, 当前行未找到对应的 AST 节点");
+                    return;
+                }
+                const astNodeParent = frontAstNode?.parent;
+                const node = this.createNode({
+                    id: toInsertLineId,
+                    styleType: NODE_TYPES.BLOCK,
+                    type: NODE_TYPES.BLOCK,
+                    content: initialContent,
+                    indentLevel}
+                )
+                if (!astNodeParent) {
+                    // 获取在 astRoot 中的索引
+                    const toInsertIndex = astNodeParent.children.findIndex(n => n.id === frontAstNode.id);
+                    if (toInsertIndex === -1) {
+                        console.error("当前 Block AST 节点未找到在 astRoot 中的索引");
+                        return;
+                    }
+                    // 在 astRoot 中插入节点
+                    this.root.splice(toInsertIndex + 1, 0, node);
+                } else {
+                    // 获取 frontAstNode 在 astNodeParent.children 中的索引
+                    const toInsertIndex = astNodeParent.children.indexOf(frontAstNode)
+                    astNodeParent.InserChildrentNode(node, toInsertIndex + 1);
+                }
+            }            
+            // 插入节点
+            insertNode(content, id) {
+                const indentLevel = Utils.getIndentLevel(content);
+                const blockLevel = Utils.isBlockLine(content);
+                const continueLevel = Utils.isContinueLine(content);
+                const spaceIndent = Utils.hasSpaceIndent(content);
+                
+                let type = NODE_TYPES.PARAGRAPH;
+                
+                // 判断节点类型
+                if (blockLevel !== null) {
+                    type = NODE_TYPES.BLOCK;
+                } else if (this.isContinueLine(indentLevel, continueLevel, spaceIndent)) {
+                    type = NODE_TYPES.CONTINUE;
+                }
+                
+                const node = this.createNode({ id, styleType: type, type, content, indentLevel });
+                
+                // 根据类型处理节点
+                switch (type) {
+                    case NODE_TYPES.BLOCK:
+                        this.handleBlockNode(node, indentLevel);
+                        break;
+                    case NODE_TYPES.CONTINUE:
+                        this.handleContinueNode(node, indentLevel);
+                        break;
+                    case NODE_TYPES.PARAGRAPH:
+                        this.handleParagraphNode(node);
+                        break;
+                }
+                
+                return node;
+            }
+            
+            // 判断是否为继续行
+            isContinueLine(indentLevel, continueLevel, spaceIndent) {
+                const lastStackNode = this.indentStack[this.indentStack.length - 1];
+                return (continueLevel === this.indentStack.length - 1) || 
+                       (lastStackNode && spaceIndent > 0);
+            }
+
+            // 处理 块节点 在 tab  缩进或反缩进 模式下
+            handleBlockNodeByTab(indentLevel, content, id) {
+                const node = this.createNode({ id, styleType: NODE_TYPES.BLOCK, type: NODE_TYPES.BLOCK, content, indentLevel });
+                const parent = indentLevel > 0 ? this.indentStack[indentLevel - 1] : null;
+                const closeParent = this.indentStack.length > 0 ? this.indentStack[this.indentStack.length - 1] : null
+
+                if (parent) {
+                    parent.addChild(node)
+                    this.indentStack[indentLevel] = node;
+                    this.indentStack.length = indentLevel + 1;
+                } else if (closeParent !== null && closeParent.type === NODE_TYPES.BLOCK && indentLevel - 1 > closeParent.indentLevel) {
+                    node.styleType = NODE_TYPES.CONTINUE
+                    closeParent.addContinue(node);
+                } else if (indentLevel === 0){
+                    this.root.push(node);
+                    this.indentStack[0] = node;
+                    this.indentStack.length = 1;
+                } else {
+                    console.warn("无法找到 block 节点的父节点，请检查缩进格式");
+                    // 如果没有找到父节点，可能是因为缩进格式不正确，直接插入一个段落节点
+                    handleParagraphNodeByTab(NODE_TYPES.BLOCK, NODE_TYPES.PARAGRAPH, indentLevel, content,  id);
+                }
+            }
+            
+            // 处理块节点
+            handleBlockNode(node, indentLevel) {
+                const parent = indentLevel > 0 ? this.indentStack[indentLevel - 1] : null;
+                
+                if (parent) {
+                    parent.addChild(node);
+                } else if (indentLevel === 0) {
+                    this.root.push(node);
+                } else {
+                    // 处理缩进错误
+                    this.root.push(node);
+                    console.warn('缩进级别不匹配，已插入到根级别');
+                }
+                
+                // 更新缩进栈
+                this.indentStack[indentLevel] = node;
+                this.indentStack.length = indentLevel + 1;
+            }
+            
+            // 处理继续节点
+            handleContinueNode(node, indentLevel) {
+                const parent = this.indentStack[indentLevel];
+                
+                if (parent && parent.type === NODE_TYPES.BLOCK) {
+                    parent.addContinue(node);
+                } else {
+                    // 转为段落节点
+                    node.type = NODE_TYPES.PARAGRAPH;
+                    this.handleParagraphNode(node);
+                }
+            }
+
+            handleContinueNodeByTab(indentLevel, content, id) {
+                const parent = this.indentStack[indentLevel];
+                const closeParent = this.indentStack.length > 0 ? this.indentStack[this.indentStack.length - 1] : null;
+                const spaceCount = closeParent !== null ? Utils.hasSpaceIndent(content) : null;
+                // 如果是 continue 节点，且上一个节点是 block 节点，
+                // 且 continueIndent 大于 0 或者 spaceCount 大于 0
+                // 则将 continue 节点添加到 block 节点的 continueChildren 中
+                if (closeParent && closeParent.type === NODE_TYPES.BLOCK && (indentLevel > 0 || spaceCount > 0) ) {
+                    // 创建 Node 的过程中，也会更新 nodeMap
+                    const node = this.createNode({ id, styleType: NODE_TYPES.CONTINUE, type: NODE_TYPES.CONTINUE, content, indentLevel });
+                    closeParent.addContinue(node);
+                } else {
+                    // 如果没有找到父节点，可能是因为缩进格式不正确，直接插入一个段落节点
+                    this.handleParagraphNodeByTab(NODE_TYPES.PARAGRAPH, NODE_TYPES.PARAGRAPH, indentLevel, content, id);
+                    console.warn("无法找到 continue 节点的父节点，请检查缩进格式");
+                    return;
+                }
+            }
+            
+            // 处理段落节点
+            handleParagraphNode(node) {
+                this.root.push(node);
+                this.indentStack = [];
+            }
+            handleParagraphNodeByTab(type, styleType, indentLevel, content, id) {
+                // 创建 Node 的过程中，也会更新 nodeMap
+                const node = this.createNode({ id, styleType, type, content, indentLevel });
+                this.root.push(node);
+                this.indentStack = [];
+            }
+            
+            // 更新节点内容
+            updateNodeContent(id, content) {
+                const node = this.nodeMap.get(id);
+                if (node) {
+                    node.content = content;
+                }
+            }
+            
+            // 删除节点
+            deleteNode(id) {
+                const node = this.nodeMap.get(id);
+                if (node) {
+                    node.remove();
+                    this.nodeMap.delete(id);
+                }
+            }
+            
+            // 重建AST
+            rebuild() {
+                this.clearNodeMap();
+                this.clearIndentStack();
+                
+                // 获取扁平化的节点列表
+                const flatNodes = this.flattenNodes(this.root);
+                // 清空根节点
+                this.clearRoot();
+                // 重新构建
+                flatNodes.forEach(node => {
+                    this.tabInsertNode(node);
+                });
+            }
+            
+            // 扁平化节点
+            flattenNodes(nodes) {
+                const result = [];
+                
+                function flatten(nodeList) {
+                    nodeList.forEach(node => {
+                        result.push(node);
+                        if (node.continueChildren.length > 0) {
+                            flatten(node.continueChildren);
+                        }
+                        if (node.children.length > 0) {
+                            flatten(node.children);
+                        }
+                    });
+                }
+                
+                flatten(nodes);
+                return result;
+            }
+            
+            // 渲染AST
+            renderAST() {
+                const output = document.getElementById('astOutput');
+                const stats = document.getElementById('stats');
+                
+                const astData = this.root.map(node => node.toJSON());
+                output.textContent = JSON.stringify(astData, null, 2);
+                
+                // 显示统计信息
+                const totalNodes = this.nodeMap.size;
+                const blockNodes = Array.from(this.nodeMap.values()).filter(n => n.type === NODE_TYPES.BLOCK).length;
+                const continueNodes = Array.from(this.nodeMap.values()).filter(n => n.type === NODE_TYPES.CONTINUE).length;
+                const paragraphNodes = Array.from(this.nodeMap.values()).filter(n => n.type === NODE_TYPES.PARAGRAPH).length;
+                
+                stats.innerHTML = `
+                    <strong>统计信息:</strong>
+                    总节点: ${totalNodes} | 
+                    块节点: ${blockNodes} | 
+                    继续节点: ${continueNodes} | 
+                    段落节点: ${paragraphNodes}
+                `;
+            }
+            
+            // 获取节点
+            getNode(id) {
+                return this.nodeMap.get(id);
+            }
+        }
+
+        // 编辑器管理器
+        class EditorManager {
+            constructor(editorElement, astManager) {
+                this.editor = editorElement;
+                this.astManager = astManager;
+                this.setupEventListeners();
+            }
+            
+            // 设置事件监听器
+            setupEventListeners() {
+                this.editor.addEventListener('keydown', this.handleKeydown.bind(this));
+                this.editor.addEventListener('input', Utils.debounce(this.handleInput.bind(this), 200));
+            }
+            
+            // 处理键盘事件
+            handleKeydown(e) {
+                switch (e.key) {
+                    case 'Enter':
+                        this.handleEnter(e);
+                        break;
+                    case 'Tab':
+                        this.handleTab(e);
+                        break;
+                }
+            }
+            
+            // 处理回车键
+            handleEnter(e) {
+                e.preventDefault();
+                
+                const currentLine = this.getCurrentLine();
+                if (!currentLine) return;
+                
+                const currentContent = currentLine.textContent || '';
+                const currentNode = this.astManager.getNode(currentLine.dataset.id);
+                
+                if (!currentNode) return;
+                
+                const indentLevel = Utils.getIndentLevel(currentContent);
+                const toInsertLineId = Utils.generateId();
+                
+                // 确定新行的初始内容
+                let initialContent = INDENT_CHAR.repeat(indentLevel);
+                
+                if (e.shiftKey || currentNode.type === NODE_TYPES.CONTINUE) {
+                    initialContent += CONTINUE_PREFIX;
+                } else if (currentNode.type === NODE_TYPES.PARAGRAPH) {
+                    // 段落行保持相同缩进
+                } else {
+                    initialContent += BLOCK_PREFIX;
+                }
+                
+                // 创建新行
+                const newLine = this.createLine(initialContent, toInsertLineId);
+                this.insertLineAfter(currentLine, newLine);
+                Utils.setCaretToEnd(newLine);
+                
+                // 更新AST
+                const frontAstNodeId = currentNode.id;
+                this.astManager.enterInsertNode(e, frontAstNodeId, toInsertLineId, initialContent, indentLevel, 
+                    currentNode.type);
+                this.astManager.renderAST();
+            }
+            
+            // 处理Tab键
+            handleTab(e) {
+                e.preventDefault();
+                
+                const lines = this.getSelectedLines();
+                const isShift = e.shiftKey;
+                
+                lines.forEach(line => {
+                    const node = this.astManager.getNode(line.dataset.id);
+                    if (!node) return;
+                    
+                    // 更新DOM
+                    if (isShift) {
+                        if (line.textContent.startsWith(INDENT_CHAR)) {
+                            line.textContent = line.textContent.slice(1);
+                        }
+                    } else {
+                        line.textContent = INDENT_CHAR + line.textContent;
+                    }
+                    
+                    // 更新节点缩进级别
+                    const newIndentLevel = Math.max(0, node.indentLevel + (isShift ? -1 : 1));
+                    node.indentLevel = newIndentLevel;
+                    node.content = line.textContent;
+                    
+                    // 更新节点类型
+                    if (newIndentLevel > 0 && node.type === NODE_TYPES.PARAGRAPH) {
+                        const continueLevel = Utils.isContinueLine(line.textContent);
+                        node.type = (continueLevel !== null) ? NODE_TYPES.CONTINUE : NODE_TYPES.BLOCK;
+                    }
+                });
+                
+                // 重建AST
+                this.astManager.rebuild();
+                this.astManager.renderAST();
+            }
+            
+            // 处理输入事件
+            handleInput(e) {
+                const line = this.getCurrentLine();
+                if (!line) return;
+                
+                const id = line.dataset.id;
+                const content = line.textContent || '';
+                
+                this.astManager.updateNodeContent(id, content);
+                this.astManager.renderAST();
+            }
+            
+            // 创建行元素
+            createLine(content = '', id = Utils.generateId()) {
+                const div = document.createElement('div');
+                div.className = 'line';
+                // div.contentEditable = 'true';
+                div.textContent = content;
+                div.dataset.id = id;
+                
+                // 根据内容添加样式类
+                if (Utils.isBlockLine(content) !== null) {
+                    div.classList.add('block');
+                } else if (Utils.isContinueLine(content) !== null) {
+                    div.classList.add('continue');
+                } else {
+                    div.classList.add('paragraph');
+                }
+                return div;
+            }
+            
+            // 在指定行后插入新行
+            insertLineAfter(currentLine, newLine) {
+                const nextLine = currentLine.nextSibling;
+                if (nextLine) {
+                    this.editor.insertBefore(newLine, nextLine);
+                } else {
+                    this.editor.appendChild(newLine);
+                }
+            }
+            
+            // 获取当前行
+            getCurrentLine() {
+                const selection = window.getSelection();
+                if (!selection.rangeCount) return null;
+                
+                let node = selection.anchorNode;
+                if (node.nodeType === 3) node = node.parentNode;
+                
+                while (node && node !== this.editor && !node.classList.contains('line')) {
+                    node = node.parentNode;
+                }
+                // 没有必要返回 index
+                // Array.from(editor.children).indexOf(node);
+                return (node && node !== this.editor) ? node : null;
+            }
+            
+            // 获取选中的行
+            getSelectedLines() {
+                const selection = window.getSelection();
+                const range = selection.getRangeAt(0);
+                
+                return Array.from(this.editor.children).filter(line => {
+                    const lineRect = line.getBoundingClientRect();
+                    const rangeRect = range.getBoundingClientRect();
+                    return lineRect.bottom > rangeRect.top && lineRect.top < rangeRect.bottom;
+                });
+            }
+            
+            // 清空编辑器
+            clear() {
+                this.editor.innerHTML = '';
+                this.astManager.clearAll();
+                this.astManager.renderAST();
+            }
+            
+            // 加载示例内容
+            loadSample() {
+                const sampleLines = [
+                    '- 项目管理',
+                    '\t- 任务分配',
+                    '\t\t- 开发任务',
+                    '\t\t- 测试任务',
+                    '\t- 进度跟踪',
+                    '\t  定期检查项目进度',
+                    '\t  及时调整计划',
+                    '- 代码优化',
+                    '\t- 性能优化',
+                    '\t- 代码重构',
+                    '这是一个普通段落',
+                    '这是另一个段落'
+                ];
+                
+                this.clear();
+                
+                sampleLines.forEach(content => {
+                    const id = Utils.generateId();
+                    const lineElement = this.createLine(content, id);
+                    this.editor.appendChild(lineElement);
+                    this.astManager.insertNode(content, id);
+                });
+                
+                this.astManager.renderAST();
+            }
+        }
+
+        // 初始化应用
+        const editor = document.getElementById('editor');
+        const astManager = new ASTManager();
+        const editorManager = new EditorManager(editor, astManager);
+
+        // 加载示例内容
+        editorManager.loadSample();
+    </script>
+</body>
+</html>
