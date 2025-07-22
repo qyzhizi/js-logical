@@ -184,14 +184,14 @@
     <div class="container">
         <div class="header">
             <h1>优化后的AST编辑器</h1>
-            <p>支持层级缩进的智能文本编辑器</p>
+            <p>支持层级缩进的智能文本编辑器 - 输入"-"自动转换为块节点</p>
         </div>
         
         <div class="main-content">
             <div class="editor-panel">
                 <div class="controls">
                     <button class="btn btn-primary" onclick="astManager.renderAST()">更新AST</button>
-                    <button class="btn btn-secondary" onclick="editorManager.clear()">清空</button>
+                    <button class="btn btn-secondary" onclick="editorManager.initEditor()">初始化编辑器，创建空白行utton>
                     <button class="btn btn-secondary" onclick="editorManager.loadSample()">加载示例</button>
                 </div>
                 
@@ -204,7 +204,7 @@
                         <li><kbd>Shift+Enter</kbd> 新建继续节点</li>
                         <li><kbd>Tab</kbd> 增加缩进</li>
                         <li><kbd>Shift+Tab</kbd> 减少缩进</li>
-                        <li><kbd>-</kbd> 开头创建块节点</li>
+                        <li><kbd>-</kbd> 开头创建块节点 (支持自动转换)</li>
                     </ul>
                 </div>
             </div>
@@ -249,6 +249,16 @@
             // 检查是否为继续节点
             isContinueLine: (text) => {
                 const match = text.match(/^(\t*)(?!-)/);
+                // 如果是空格缩进，则返回 false
+                if (match && match[1].length > 0) {
+                    return match[1].length;
+                } else {
+                    return null;
+                }
+            },
+
+            continueLineLevel: (text) => {
+                const match = text.match(/^(\t*)(?!-)/);
                 return match ? match[1].length : null;
             },
             
@@ -279,7 +289,33 @@
                 range.collapse(false);
                 selection.removeAllRanges();
                 selection.addRange(range);
-            }
+            },
+
+            /**
+             * 从一个选区 Range 对象中，找到当前行的 DOM 元素
+             * 假设每一行都有 data-id 属性标识
+             * @param {Range} range
+             * @returns {HTMLElement | null}
+             */
+            getLineElementFromRange(range) {
+                if (!range || !range.startContainer) return null;
+
+                const startNode = range.startContainer;
+
+                // 如果 startNode 是元素节点，可以直接尝试 .closest()
+                if (startNode.nodeType === Node.ELEMENT_NODE) {
+                return startNode.closest('[data-id]');
+                }
+
+                // 如果是文本节点（常见情况），从其父元素开始找
+                if (startNode.nodeType === Node.TEXT_NODE && startNode.parentElement) {
+                return startNode.parentElement.closest('[data-id]');
+                }
+
+                return null;
+            },
+
+
         };
 
         // AST节点类
@@ -300,6 +336,7 @@
                 node.parent = this;
                 this.children.push(node);
             }
+            
             // 在某个位置插入子节点
             InserChildrentNode(node, index) {
                 node.parent = this;
@@ -308,11 +345,13 @@
                 }
                 this.children.splice(index, 0, node);
             }
+            
             // 添加继续节点
             addContinue(node) {
                 node.parent = this;
                 this.continueChildren.push(node);
             }
+            
             // 在某个位置插入继续节点
             InsertContinueNode(node, index) {
                 node.parent = this;
@@ -369,18 +408,22 @@
                 this.nodeMap = new Map();
                 this.indentStack = [];
             }
+            
             clearAll(){
                 this.clearNodeMap();
                 this.clearRoot();
                 this.clearIndentStack();
             }
+            
             // 清空AST
             clearNodeMap() {
                 this.nodeMap.clear();
             }
+            
             clearRoot() {
                 this.root = [];
             }
+            
             clearIndentStack() {
                 this.indentStack = [];
                 this.indentStack.length = 0;
@@ -394,7 +437,7 @@
             }
             
             // tab 缩进或反缩进 模式下，向 AST 中插入节点
-            tabInsertNode(node){
+            InsertNodeByTab(node){
                 const { id, styleType, type, content, indentLevel } = node;
                 if (type === NODE_TYPES.CONTINUE) {
                     this.handleContinueNodeByTab(indentLevel, content, id);
@@ -404,6 +447,28 @@
                     this.handleBlockNodeByTab(indentLevel, content, id);
                 }
             }
+            
+            convertNodeType(id, newType, newStyleType, content) {
+                const node = this.nodeMap.get(id);
+                if (!node) {
+                    console.error(`Node with id ${id} not found`);
+                    return false;
+                }
+                
+                // 更新节点类型和样式
+                node.type = newType;
+                node.styleType = newStyleType;
+                node.content = content;
+                
+                // 更新缩进级别
+                node.indentLevel = Utils.getIndentLevel(content);
+                
+                // 更新节点在 AST 中的位置
+                // this.updateNodeInAST(node);
+                
+                return true;
+            }
+            
             // 使用 enter 键插入节点
             enterInsertNode(e, frontAstNodeId, toInsertLineId, initialContent, indentLevel, frontLineAstNodeType) {
                 // const toInsertLineId = toInsertLine.dataset.id
@@ -487,8 +552,8 @@
                     indentLevel}
                 )
                 if (!astNodeParent) {
-                    // 获取在 astRoot 中的索引
-                    const toInsertIndex = astNodeParent.children.findIndex(n => n.id === frontAstNode.id);
+                    // 获取在 this.root 中的索引
+                    const toInsertIndex = this.root.findIndex(n => n.id === frontAstNode.id);
                     if (toInsertIndex === -1) {
                         console.error("当前 Block AST 节点未找到在 astRoot 中的索引");
                         return;
@@ -500,12 +565,13 @@
                     const toInsertIndex = astNodeParent.children.indexOf(frontAstNode)
                     astNodeParent.InserChildrentNode(node, toInsertIndex + 1);
                 }
-            }            
+            }
+            
             // 插入节点
             insertNode(content, id) {
                 const indentLevel = Utils.getIndentLevel(content);
                 const blockLevel = Utils.isBlockLine(content);
-                const continueLevel = Utils.isContinueLine(content);
+                const continueLevel = Utils.continueLineLevel(content);
                 const spaceIndent = Utils.hasSpaceIndent(content);
                 
                 let type = NODE_TYPES.PARAGRAPH;
@@ -562,7 +628,7 @@
                 } else {
                     console.warn("无法找到 block 节点的父节点，请检查缩进格式");
                     // 如果没有找到父节点，可能是因为缩进格式不正确，直接插入一个段落节点
-                    handleParagraphNodeByTab(NODE_TYPES.BLOCK, NODE_TYPES.PARAGRAPH, indentLevel, content,  id);
+                    this.handleParagraphNodeByTab(NODE_TYPES.BLOCK, NODE_TYPES.PARAGRAPH, indentLevel, content,  id);
                 }
             }
             
@@ -622,6 +688,7 @@
                 this.root.push(node);
                 this.indentStack = [];
             }
+            
             handleParagraphNodeByTab(type, styleType, indentLevel, content, id) {
                 // 创建 Node 的过程中，也会更新 nodeMap
                 const node = this.createNode({ id, styleType, type, content, indentLevel });
@@ -657,10 +724,27 @@
                 this.clearRoot();
                 // 重新构建
                 flatNodes.forEach(node => {
-                    this.tabInsertNode(node);
+                    this.InsertNodeByTab(node);
                 });
             }
             
+            // 重建AST
+            rebuildWhenMutationsLine(editor) {
+                
+                // 获取扁平化的节点列表
+                const flatNodes = this.flattenNodesFromEditor(editor);
+                // // 清空节点映射
+                // this.clearNodeMap();
+                // // 清空根节点
+                // this.clearRoot();
+                // this.clearIndentStack();
+                this.clearAll();
+                // 重新构建
+                flatNodes.forEach(node => {
+                    this.insertNode(node.content, node.id);
+                });
+            }
+
             // 扁平化节点
             flattenNodes(nodes) {
                 const result = [];
@@ -679,6 +763,28 @@
                 
                 flatten(nodes);
                 return result;
+            }
+
+            // 通过 editor 按顺序获取所有的 line，通过 editor children 的方式获取
+            flattenNodesFromEditor(editor) {
+                const lines = Array.from(editor.children);
+                // 通过 nodeMap 获取 AST 节点
+                return lines.map(line => {
+                    const id = line.dataset.id;
+                    const node = this.nodeMap.get(id);
+                    if (!node) {
+                        // console.warn(`未找到对应的 AST 节点: ${id}`);
+                        return this.createNode({
+                            id,
+                            styleType: null,
+                            type: null,
+                            content: line.textContent || '',
+                            indentLevel: null
+                        });
+                    }
+                    return node
+
+                });
             }
             
             // 渲染AST
@@ -754,7 +860,7 @@
                 // 确定新行的初始内容
                 let initialContent = INDENT_CHAR.repeat(indentLevel);
                 
-                if (e.shiftKey || currentNode.type === NODE_TYPES.CONTINUE) {
+                if ((e.shiftKey && currentNode.type === NODE_TYPES.BLOCK) || currentNode.type === NODE_TYPES.CONTINUE) {
                     initialContent += CONTINUE_PREFIX;
                 } else if (currentNode.type === NODE_TYPES.PARAGRAPH) {
                     // 段落行保持相同缩进
@@ -777,50 +883,155 @@
             // 处理Tab键
             handleTab(e) {
                 e.preventDefault();
-                
-                const lines = this.getSelectedLines();
                 const isShift = e.shiftKey;
-                
+                const selection = window.getSelection();
+                const range = selection.getRangeAt(0);
+
+                // 获取选中所有行（已排序）
+                const lines = this.getSelectedLines();
+                if (!lines.length) return;
+
+                // 缓存选区起始 offset
+                const anchorOffset = range.startOffset;
+                const focusOffset = range.endOffset;
+
+                // 缓存缩进前的首尾行节点（用于稍后恢复 range）
+                const originalAnchorLine = lines[0];
+                const originalFocusLine = lines[lines.length - 1];
+
+                // 缩进处理
                 lines.forEach(line => {
                     const node = this.astManager.getNode(line.dataset.id);
                     if (!node) return;
-                    
+
                     // 更新DOM
+                    let text = line.textContent;
                     if (isShift) {
-                        if (line.textContent.startsWith(INDENT_CHAR)) {
-                            line.textContent = line.textContent.slice(1);
+                        if (text.startsWith(INDENT_CHAR)) {
+                            text = text.slice(1);
+                            node.indentLevel = Math.max(0, node.indentLevel - 1);
                         }
                     } else {
-                        line.textContent = INDENT_CHAR + line.textContent;
+                        text = INDENT_CHAR + text;
+                        node.indentLevel += 1;
                     }
-                    
-                    // 更新节点缩进级别
-                    const newIndentLevel = Math.max(0, node.indentLevel + (isShift ? -1 : 1));
-                    node.indentLevel = newIndentLevel;
-                    node.content = line.textContent;
-                    
-                    // 更新节点类型
-                    if (newIndentLevel > 0 && node.type === NODE_TYPES.PARAGRAPH) {
-                        const continueLevel = Utils.isContinueLine(line.textContent);
-                        node.type = (continueLevel !== null) ? NODE_TYPES.CONTINUE : NODE_TYPES.BLOCK;
+
+                    line.textContent = text;
+                    node.content = text;
+
+                    if (node.indentLevel > 0 && node.type === NODE_TYPES.PARAGRAPH) {
+                        const continueLevel = Utils.continueLineLevel(text);
+                        node.type = continueLevel !== null ? NODE_TYPES.CONTINUE : NODE_TYPES.BLOCK;
                     }
                 });
-                
-                // 重建AST
+
+                // 重新获取 anchor 和 focus 节点
+                const newAnchorNode = originalAnchorLine.firstChild;
+                const newFocusNode = originalFocusLine.firstChild;
+
+                // 计算 offset 偏移（假设所有行都加或减了一个缩进字符）
+                const delta = isShift ? -1 : 1;
+                const adjustedAnchorOffset = Math.max(0, anchorOffset + delta);
+                const adjustedFocusOffset = Math.max(0, focusOffset + delta);
+
+                // 恢复多行选中状态
+                if (newAnchorNode && newFocusNode) {
+                    const newRange = document.createRange();
+                    newRange.setStart(newAnchorNode, Math.min(adjustedAnchorOffset, newAnchorNode.length));
+                    newRange.setEnd(newFocusNode, Math.min(adjustedFocusOffset, newFocusNode.length));
+
+                    selection.removeAllRanges();
+                    selection.addRange(newRange);
+                }
+
+                this.editor.focus();
                 this.astManager.rebuild();
                 this.astManager.renderAST();
+
             }
             
-            // 处理输入事件
+            // 处理输入事件 - 增强版，支持自动转换为块节点
             handleInput(e) {
                 const line = this.getCurrentLine();
                 if (!line) return;
                 
                 const id = line.dataset.id;
                 const content = line.textContent || '';
+                const currentNode = this.astManager.getNode(id);
                 
+                if (!currentNode) return;
+                
+                // 检查是否需要转换节点类型
+                this.checkAndConvertNodeType(line, currentNode, content);
+                
+                // 更新AST中的节点内容
                 this.astManager.updateNodeContent(id, content);
                 this.astManager.renderAST();
+            }
+            
+            // 检查并转换节点类型
+            checkAndConvertNodeType(line, currentNode, content) {
+                const indentLevel = Utils.getIndentLevel(content);
+                const isBlockLine = Utils.isBlockLine(content) !== null;
+                const isContinueLine = Utils.isContinueLine(content) !== null && !isBlockLine;
+                
+                let newType = NODE_TYPES.PARAGRAPH;
+                let newStyleType = NODE_TYPES.PARAGRAPH;
+                
+                // 根据内容确定新的节点类型
+                if (isBlockLine) {
+                    newType = NODE_TYPES.BLOCK;
+                    newStyleType = NODE_TYPES.BLOCK;
+                } else if (isContinueLine && this.hasBlockParent(currentNode)) {
+                    newType = NODE_TYPES.CONTINUE;
+                    newStyleType = NODE_TYPES.CONTINUE;
+                } else {
+                    newType = NODE_TYPES.PARAGRAPH;
+                    newStyleType = NODE_TYPES.PARAGRAPH;
+                }
+                
+                // 如果类型发生变化，进行转换
+                if (currentNode.type !== newType) {
+                    console.log(`转换节点类型: ${currentNode.type} -> ${newType}`, { content, indentLevel });
+                    
+                    // 转换AST中的节点类型
+                    const success = this.astManager.convertNodeType(currentNode.id, newType, newStyleType, content);
+                    
+                    if (success) {
+                        // 更新DOM元素的样式类
+                        this.updateLineStyle(line, newStyleType);
+                        
+                        // 如果转换成功，重建AST以确保结构正确
+                        this.astManager.rebuild();
+                    }
+                } else {
+                    // 即使类型没有变化，也要确保样式类正确
+                    this.updateLineStyle(line, newStyleType);
+                }
+            }
+            
+            // 检查是否有块节点父级
+            hasBlockParent(currentNode) {
+                return currentNode && currentNode.parent?.type === NODE_TYPES.BLOCK;
+            }
+            
+            // 更新行的样式类
+            updateLineStyle(line, styleType) {
+                // 移除所有样式类
+                line.classList.remove('block', 'continue', 'paragraph');
+                
+                // 添加新的样式类
+                switch (styleType) {
+                    case NODE_TYPES.BLOCK:
+                        line.classList.add('block');
+                        break;
+                    case NODE_TYPES.CONTINUE:
+                        line.classList.add('continue');
+                        break;
+                    case NODE_TYPES.PARAGRAPH:
+                        line.classList.add('paragraph');
+                        break;
+                }
             }
             
             // 创建行元素
@@ -886,6 +1097,16 @@
                 this.astManager.clearAll();
                 this.astManager.renderAST();
             }
+            // 初始化编辑器，创建空白行
+            initEditor() {
+                this.clear();
+                const id = Utils.generateId();
+                const content = "";
+                const lineElement = this.createLine(content, id);
+                this.editor.appendChild(lineElement);
+                this.astManager.insertNode(content, id);
+                this.astManager.renderAST();
+            }
             
             // 加载示例内容
             loadSample() {
@@ -921,6 +1142,43 @@
         const editor = document.getElementById('editor');
         const astManager = new ASTManager();
         const editorManager = new EditorManager(editor, astManager);
+
+        // 创建 observer 实例
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.removedNodes.length > 0) {
+                    console.log('⚠️ 某些 .line 被删除:', mutation.removedNodes);
+                    // 从 AST 中删除对应的节点
+                    astManager.rebuildWhenMutationsLine(editor);
+                    astManager.renderAST();
+                } else if (mutation.addedNodes.length > 0 && isUndoing === true) {
+                    console.log('🔄 某些 .line 被添加:', mutation.addedNodes);
+                    // 重新构建 AST
+                    astManager.rebuildWhenMutationsLine(editor);
+                    astManager.renderAST();
+                }
+
+            });
+        });
+
+        // 开始监听 editor 内部子节点的增删
+        observer.observe(editor, {
+            childList: true,      // 监听子元素变化
+            subtree: false        // 不递归监听子节点的子节点
+        });
+
+        let isUndoing = false;
+
+        // 监听 beforeinput 来捕捉是否是撤销操作
+        editor.addEventListener('beforeinput', (event) => {
+            if (event.inputType === 'historyUndo') {
+                isUndoing = true;
+                // 延迟清除标志，避免错过 observer 的异步触发
+                setTimeout(() => {
+                    isUndoing = false;
+                }, 50);
+            }
+        });
 
         // 加载示例内容
         editorManager.loadSample();
