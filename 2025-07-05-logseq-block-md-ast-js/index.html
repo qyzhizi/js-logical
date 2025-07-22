@@ -50,7 +50,7 @@
   function createLine(text = "", id = crypto.randomUUID()) {
     const div = document.createElement("div");
     div.className = "line";
-    div.contentEditable = "true";
+    // div.contentEditable = "true";
     div.textContent = text;
     div.dataset.id = id;
     return div;
@@ -129,9 +129,8 @@
 
 
 
-  function RandomInsertAstContinueNode(index, line, id, content, indentCount) {
+  function RandomInsertAstContinueNode(line, id, content, indentCount) {
     let continueIndex = 1;
-    let currentIndex = index;
     let lineId = line.dataset.id;
     let currentAstNode = idMap.get(lineId).node;
     // 如果当前输入 shift+enter 的行是 continue 节点，在 idmap获取其所属的父节点, 否则就是当前节点
@@ -157,11 +156,7 @@
     idMap.set(id, { node:continueNode, parent:belongToAstNode });
   }
 
-  function insertAstParagraphNodeAt(index, line, id, content, indentCount) {
-    // index 是希望插入在当前行之后的在 editor 的位置
-    // index -1 是当前在 editor 的位置
-    const currentIndex = index - 1;
-    
+  function insertAstParagraphNodeAt(line, id, content, indentCount) {
     // 获取当前Ast节点
     const currentAstNode = idMap.get(line.dataset.id)?.node;
     if (!currentAstNode) {
@@ -187,11 +182,7 @@
     
   }
 
-  function randomInsertAstBlockNodeAt(index, line, id, content, indentCount) {
-    // index 是希望插入在当前行之后的在 editor 的位置
-    // index -1 是当前在 editor 的位置
-    const currentIndex = index - 1;
-    
+  function randomInsertAstBlockNodeAt(line, id, content, indentCount) {
     // 获取当前Ast节点
     const currentAstNode = idMap.get(line.dataset.id)?.node;
     if (!currentAstNode) {
@@ -322,14 +313,15 @@
     if (closeParent && closeParent.type === TextType.BLOCK && (continueIndent > 0 || spaceCount > 0) ) {
       // 如果是 continue 节点，且上一个节点是 block 节点，且 continueIndent 大于 0
       // 则将 continue 节点添加到 block 节点的 continueChildren 中
-      closeParent.continueChildren.push(createAstNode({
+      const node = createAstNode({
         id,
         styleType:TextType.CONTINUE,
         type:TextType.CONTINUE,
         content: content,
         indentCount: continueIndent
-      }));
-      idMap.set(id, { node: closeParent.continueChildren[closeParent.continueChildren.length - 1], parent: closeParent });
+      });
+      closeParent.continueChildren.push(node);
+      idMap.set(id, { node: node, parent: closeParent });
       return;
     } else {
       // 如果没有找到父节点，可能是因为缩进格式不正确，直接插入一个段落节点
@@ -526,7 +518,6 @@
     if (e.shiftKey || currentAstNodeType === TextType.CONTINUE) {
       // 在 AST 中插入 continue 节点
       RandomInsertAstContinueNode(
-        index,
         line,
         newId,
         editorInitialLineContent,
@@ -534,10 +525,10 @@
       );
     } else if (currentAstNodeType === TextType.PARAGRAPH) {
       // 在 AST 中插入段落节点
-      insertAstParagraphNodeAt(index + 1, line, newId, editorInitialLineContent, indentCount);
+      insertAstParagraphNodeAt(line, newId, editorInitialLineContent, indentCount);
     } else if(currentAstNodeType === TextType.BLOCK) {
       // ✅ 增量插入 AST
-      randomInsertAstBlockNodeAt(index + 1, line, newId, editorInitialLineContent, indentCount);
+      randomInsertAstBlockNodeAt(line, newId, editorInitialLineContent, indentCount);
     }
     renderAST(); // 展示 AST
   });
