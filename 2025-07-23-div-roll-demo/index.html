@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>嵌套滚动容器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        /* html, body {
+            height: 100%;
+            overflow: hidden;
+        } */ 
+        
+        /* 第一个容器 - 占满整个页面，无滚动条 */
+        .outer-container {
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* padding: 20px; */
+            overflow: hidden; /* 确保外层容器不显示滚动条 */
+        }
+        
+        /* 第二个容器 - 在第一个容器内部，有滚动条 */
+        .inner-container {
+            width: 100%;
+            height: 80%;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            overflow-y: auto; /* 允许垂直滚动 */
+            overflow-x: hidden; /* 禁用水平滚动 */
+        }
+        
+        /* 自定义滚动条样式 */
+        .inner-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .inner-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        
+        .inner-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        
+        .inner-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* 文本样式 */
+        .content {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.8;
+            color: #333;
+        }
+        
+        .content h1 {
+            color: #4a5568;
+            margin-bottom: 20px;
+            font-size: 2em;
+            text-align: center;
+        }
+        
+        .content h2 {
+            color: #667eea;
+            margin: 30px 0 15px 0;
+            font-size: 1.5em;
+        }
+        
+        .content p {
+            margin-bottom: 15px;
+            text-indent: 2em;
+        }
+        
+        .highlight {
+            background-color: #fff3cd;
+            padding: 15px;
+            border-left: 4px solid #ffc107;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 第一个容器：占满整个页面，无滚动条 -->
+    <div class="outer-container">
+        <!-- 第二个容器：在第一个容器内部，有滚动条 -->
+        <div class="inner-container">
+            <div class="content">
+                <h1>欢迎来到滚动容器演示</h1>
+                
+                <h2>第一章：容器设计原理</h2>
+                <p>这是一个演示嵌套滚动容器的页面。外层容器占据了整个浏览器窗口的空间，使用了100vw和100vh来确保完全填充视口。同时，我们设置了overflow: hidden来禁用页面级别的滚动条。</p>
+                
+                <p>内层容器则设置为外层容器的80%大小，并使用overflow-y: auto来启用垂直滚动功能。这样的设计确保了只有内层容器会显示滚动条，而页面本身不会有滚动条。</p>
+                
+                <div class="highlight">
+                    <strong>重要提示：</strong>这种设计模式在现代Web应用中非常常见，特别适用于仪表板、管理界面和内容展示页面。
+                </div>
+                
+                <h2>第二章：技术实现细节</h2>
+                <p>为了实现这种效果，我们使用了以下CSS技术：</p>
+                <p>1. 使用flexbox布局来居中内层容器</p>
+                <p>2. 使用视口单位(vw, vh)来确保外层容器占满整个屏幕</p>
+                <p>3. 使用overflow属性来控制滚动行为</p>
+                <p>4. 自定义滚动条样式以提升用户体验</p>
+                
+                <h2>第三章：更多内容展示</h2>
+                <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+                
+                <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+                
+                <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
+                
+                <h2>第四章：响应式设计</h2>
+                <p>这个设计是完全响应式的，无论在桌面端、平板还是移动设备上都能很好地工作。容器会根据屏幕大小自动调整，保持良好的用户体验。</p>
+                
+                <p>在移动设备上，滚动体验会自动适配触摸手势，用户可以通过滑动来浏览内容。这种设计模式特别适合需要展示大量内容但又想保持页面整洁的场景。</p>
+                
+                <h2>第五章：实际应用场景</h2>
+                <p>这种嵌套滚动容器的设计在以下场景中特别有用：</p>
+                <p>• 管理后台的数据展示页面</p>
+                <p>• 长文档的阅读界面</p>
+                <p>• 聊天应用的消息列表</p>
+                <p>• 产品目录和列表页面</p>
+                <p>• 新闻和博客内容页面</p>
+                
+                <div class="highlight">
+                    <strong>性能提示：</strong>当内容非常长时，可以考虑使用虚拟滚动技术来优化性能。
+                </div>
+                
+                <h2>第六章：可访问性考虑</h2>
+                <p>在实现滚动容器时，我们还需要考虑可访问性。确保键盘用户可以正常导航，屏幕阅读器用户可以理解内容结构。我们使用了适当的HTML语义标签和合理的颜色对比度。</p>
+                
+                <p>这个页面演示了如何创建一个既美观又实用的滚动容器系统。外层容器提供了稳定的框架，内层容器则专注于内容的展示和滚动功能。</p>
+                
+                <h2>结语</h2>
+                <p>通过这种设计，我们成功地创建了一个只有内层容器具有滚动条的页面布局。这种方法提供了更好的用户体验，避免了页面级别的滚动，同时保持了内容的可访问性。</p>
+                
+                <p>您可以继续向下滚动查看更多内容，注意观察只有这个内部容器在滚动，而页面本身保持固定。这就是我们想要实现的效果！</p>
+                
+                <p>继续添加更多内容来测试滚动效果...</p>
+                <p>这里是第20行</p>
+                <p>这里是第21行</p>
+                <p>这里是第22行</p>
+                <p>这里是第23行</p>
+                <p>这里是第24行</p>
+                <p>这里是第25行</p>
+                <p>这里是第26行</p>
+                <p>这里是第27行</p>
+                <p>这里是第28行</p>
+                <p>这里是第29行</p>
+                <p>这里是第30行 - 滚动测试完成！</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
