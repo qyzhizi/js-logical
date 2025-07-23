@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+    <!-- 网站开启对 web app 程序的支持 具体表现为去除浏览器地址栏和底部导航栏 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <!-- 用来定义顶部状态栏的形式 -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+    <title>SimpleMDE Markdown Editor</title>
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon-precomposed" href="apple-touch-icon.png">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css">
+    <style>
+        html,body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+          
+        .container {
+            height: 100vh; /* 关键点：填满整个视口 */
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            flex-direction: column;
+            display: flex;
+        }
+          
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            flex: 0 0 auto;
+        }
+          
+        .header h1 {
+            margin: 0;
+            font-size: 1em;
+            font-weight: 300;
+        }
+          
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+          
+        .editor-container {
+            flex: 1 1 auto; /* 占据剩余空间 */
+            padding: 0 20px 20px;
+            display: flex;
+            flex-direction: column;
+        }
+          
+        .CodeMirror, .CodeMirror-scroll {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            height: 100% !important;
+            min-height: unset !important;
+        }
+          
+        .editor-toolbar {
+            border-top: 1px solid #ddd;
+            border-left: 1px solid #ddd;
+            border-right: 1px solid #ddd;
+            border-radius: 4px 4px 0 0;
+        }
+          
+        /* 响应式图片样式 - 限制图片宽度不超过屏幕宽度 */
+        .CodeMirror-scroll img,
+        .editor-preview img,
+        .editor-preview-side img {
+            max-width: 100% !important;
+            height: auto !important;
+            width: auto !important;
+            display: block;
+            margin: 10px 0;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        /* 确保预览区域也遵循响应式规则 */
+        .editor-preview,
+        .editor-preview-side {
+            overflow-x: auto;
+        }
+
+        .editor-preview img,
+        .editor-preview-side img {
+            cursor: zoom-in;
+            transition: transform 0.2s ease;
+        }
+
+        .editor-preview img:hover,
+        .editor-preview-side img:hover {
+            transform: scale(1.02);
+        }
+        .button-group {
+            flex: 0 0 auto;
+            padding: 10px 20px;
+            background: #f0f0f0;
+        }
+        button {
+            background-color: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            margin: 10px 5px 20px 0;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        button:hover {
+            background-color: #556cd6;
+            transform: translateY(-1px);
+        }
+
+        button:active {
+            background-color: #4455bb;
+            transform: translateY(0);
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .header {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 1em;
+            }
+            
+            button {
+                padding: 8px 15px;
+                font-size: 13px;
+                margin: 5px 3px 15px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SimpleMDE Markdown Editor</h1>
+        </div>
+
+        <div class="button-group">
+            <button id="exportBtn">导出</button> 
+            <button id="clearBtn">清空内容</button>
+            <button id="loadDemoBtn">加载 Demo</button>
+            <button id="copyBtn">复制内容</button>
+        </div>
+
+        <div class="editor-container">
+            <textarea id="demo1"></textarea>
+        </div>
+    </div>
+  
+    <script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script>
+    <script>
+        const markdownContent = `# Intro
+Go ahead, play around with the editor! Be sure to check out **bold** and *italic* styling, or even [links](https://google.com). You can type the Markdown syntax, use the toolbar, or use shortcuts like \`cmd-b\` or \`ctrl-b\`.
+  
+## Lists
+Unordered lists can be started using the toolbar or by typing \`* \`, \`- \`, or \`+ \`. Ordered lists can be started by typing \`1. \`.
+  
+#### Unordered
+* Lists are a piece of cake
+* They even auto continue as you type
+* A double enter will end them
+* Tabs and shift-tabs work too
+
+## code
+\`\`\`
+print("hello, world!")
+\`\`\`
+
+#### Ordered
+1. Numbered lists...
+2. ...work too!
+  
+## What about images?
+<img src="https://cn.bing.com/th?id=OHR.SecedaPeak_ZH-CN7633793128_1920x1080.jpg" alt="Yes" title="Seceda Peak, Dolomites, Italy" width="600">
+
+## 测试大图片
+<img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2000" alt="Mountain landscape" title="Large mountain image">
+`;
+        const simplemde = new SimpleMDE({
+            element: document.getElementById("demo1"),
+            spellChecker: false,
+            initialValue: markdownContent,
+            autosave: {
+                enabled: true,
+                uniqueId: "MyUniqueID",
+                delay: 1000,
+            },
+        });
+         
+        // 导出按钮事件
+        document.getElementById("exportBtn").addEventListener("click", () => {
+            const content = simplemde.value();
+            const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "markdown.md";
+            document.body.appendChild(a);
+            a.click();
+
+            // 清理
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }); 
+
+        // 修复后的清空内容按钮
+        document.getElementById("clearBtn").addEventListener("click", () => {
+            // 检查是否在预览模式
+            const isPreviewActive = simplemde.isPreviewActive();
+            
+            // 如果在预览模式，先切换回编辑模式
+            if (isPreviewActive) {
+                simplemde.togglePreview();
+            }
+            
+            // 清空内容
+            simplemde.value("");
+            
+            // 强制刷新编辑器
+            simplemde.codemirror.refresh();
+        });
+
+        // 加载 Demo Text 按钮
+        document.getElementById("loadDemoBtn").addEventListener("click", () => {
+            // 检查是否在预览模式
+            const isPreviewActive = simplemde.isPreviewActive();
+            
+            // 如果在预览模式，先切换回编辑模式
+            if (isPreviewActive) {
+                simplemde.togglePreview();
+            }
+            
+            // 加载内容
+            simplemde.value(markdownContent);
+            
+            // 强制刷新编辑器
+            simplemde.codemirror.refresh();
+        });
+
+        const copyBtn = document.getElementById("copyBtn");
+
+        copyBtn.addEventListener("click", () => {
+            const content = simplemde.value();
+            navigator.clipboard.writeText(content)
+                .then(() => {
+                    copyBtn.textContent = "已复制 ✅";
+                    setTimeout(() => {
+                        copyBtn.textContent = "复制内容";
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error("复制失败:", err);
+                    alert("复制失败，请手动复制！");
+                });
+        });
+        window.addEventListener("load", () => {
+            simplemde.codemirror.refresh();
+        });
+
+        window.addEventListener("resize", () => {
+            simplemde.codemirror.refresh();
+        });
+
+
+        
+
+    </script>
+</body>
+</html>

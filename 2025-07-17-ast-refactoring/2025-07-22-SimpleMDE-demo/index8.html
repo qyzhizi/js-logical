@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+    <!-- 网站开启对 web app 程序的支持 具体表现为去除浏览器地址栏和底部导航栏 -->
+    <!-- <meta name="mobile-web-app-capable" content="yes"> -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <!-- 用来定义顶部状态栏的形式 -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+    <title>SimpleMDE Markdown Editor with KaTeX</title>
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon-precomposed" href="apple-touch-icon.png">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css">
+    <!-- KaTeX CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* 关键：隐藏页面级滚动条 */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+        }
+          
+        .container {
+            height: 100vh; /* 填满整个视口 */
+            width: 100vw; /* 填满整个视口宽度 */
+            max-width: none; /* 移除最大宽度限制 */
+            margin: 0;
+            background: white;
+            box-shadow: none; /* 移除阴影以适应全屏 */
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+          
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px; /* 减少顶部padding */
+            text-align: center;
+            flex: 0 0 auto;
+        }
+          
+        .header h1 {
+            margin: 0;
+            font-size: 1.2em;
+            font-weight: 300;
+        }
+          
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+          
+        .button-group {
+            flex: 0 0 auto;
+            padding: 10px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .editor-container {
+            flex: 1 1 auto; /* 占据剩余空间 */
+            padding: 0 20px 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* 防止容器本身滚动 */
+        }
+          
+        .CodeMirror {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            height: 100% !important;
+            min-height: unset !important;
+        }
+
+        .CodeMirror-scroll {
+            height: 100% !important;
+            min-height: unset !important;
+            overflow-y: auto !important; /* 确保编辑器内部可以滚动 */
+            overflow-x: auto !important;
+            padding: 0px; /* 确保没有额外的内边距 */
+        }
+          
+        .editor-toolbar {
+            border-top: 1px solid #ddd;
+            border-left: 1px solid #ddd;
+            border-right: 1px solid #ddd;
+            border-radius: 4px 4px 0 0;
+            background: #f8f9fa;
+            padding: 0%;
+        }
+        .editor-toolbar a {
+            width: 20px;
+            height: 20px;
+        }
+          
+        /* 响应式图片样式 - 限制图片宽度不超过屏幕宽度 */
+        .CodeMirror-scroll img,
+        .editor-preview img,
+        .editor-preview-side img {
+            max-width: 100% !important;
+            height: auto !important;
+            width: auto !important;
+            display: block;
+            margin: 10px 0;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        /* 确保预览区域也遵循响应式规则和滚动 */
+        .editor-preview,
+        .editor-preview-side {
+            overflow-y: auto !important;
+            overflow-x: auto !important;
+            height: 100% !important;
+            /* padding: 20px; */
+        }
+
+        .editor-preview img,
+        .editor-preview-side img {
+            cursor: zoom-in;
+            transition: transform 0.2s ease;
+        }
+
+        .editor-preview img:hover,
+        .editor-preview-side img:hover {
+            transform: scale(1.02);
+        }
+
+        /* KaTeX 数学公式样式 */
+        .katex {
+            font-size: 1.1em;
+        }
+
+        .katex-display {
+            margin: 1em 0;
+            text-align: center;
+        }
+
+        .katex-display .katex {
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        /* 数学公式在预览中的样式 */
+        .editor-preview .katex-display,
+        .editor-preview-side .katex-display {
+            overflow-x: auto;
+            overflow-y: hidden;
+            max-width: 100%;
+        }
+
+        .editor-preview .katex,
+        .editor-preview-side .katex {
+            white-space: nowrap;
+        }
+
+        button {
+            background-color: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            margin: 5px 5px 5px 0;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        button:hover {
+            background-color: #556cd6;
+            transform: translateY(-1px);
+        }
+
+        button:active {
+            background-color: #4455bb;
+            transform: translateY(0);
+        }
+
+        /* 隐藏文件输入框 */
+        #fileInput {
+            display: none;
+        }
+
+        /* 文件按钮的特殊样式 */
+        #openFileBtn {
+            background-color: #28a745;
+        }
+
+        #openFileBtn:hover {
+            background-color: #218838;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .header {
+                padding: 0px 0px;
+            }
+            
+            .header h1 {
+                font-size: 1em;
+            }
+            
+            .editor-container {
+                padding: 0 0px 0px;
+            }
+
+            .button-group {
+                padding: 0px 0px;
+            }
+            
+            button {
+                padding: 6px 10px;
+                font-size: 12px;
+                margin: 3px 3px 3px 0;
+            }
+
+            .editor-toolbar:before{
+                margin-bottom: 0px;
+            }
+            .editor-toolbar:after{
+                margin-top: 0px;
+            }
+        }
+
+        /* 确保 SimpleMDE 的预览模式正确显示 */
+        .editor-preview-active-side .CodeMirror-scroll,
+        .editor-preview-active .CodeMirror-scroll {
+            height: 100% !important;
+            overflow-y: auto !important;
+        }
+
+        /* 分屏模式下的样式调整 */
+        /* .editor-preview-side {
+            border: 1px solid #ddd;
+            border-left: none;
+            border-radius: 0 4px 4px 0;
+        } */
+
+        /* 全屏预览模式样式 */
+        .editor-preview {
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SimpleMDE Markdown Editor with KaTeX</h1>
+        </div>
+
+        <div class="button-group">
+            <button id="openFileBtn">打开文件</button>
+            <input type="file" id="fileInput" accept=".md,.txt,.markdown" />
+            <button id="exportBtn">导出</button> 
+            <button id="clearBtn">清空内容</button>
+            <button id="loadDemoBtn">加载 Demo</button>
+            <button id="copyBtn">复制内容</button>
+            <button id="insertMathBtn">插入公式</button>
+        </div>
+
+        <div class="editor-container">
+            <textarea id="editor1"></textarea>
+        </div>
+    </div>
+  
+    <!-- Marked.js for Markdown parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/5.1.1/marked.min.js"></script>
+    <!-- KaTeX JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.js"></script>
+    <!-- SimpleMDE -->
+    <script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script>
+    <script>
+        // 自定义 Markdown 解析器，支持 KaTeX 数学公式渲染
+        function customMarkdownParser(plainText) {
+            try {
+                // 首先保护代码块和行内代码，避免其中的 $ 符号被误解析
+                const codeBlocks = [];
+                const inlineCodes = [];
+                
+                // 保护代码块 ```...```
+                let text = plainText.replace(/```[\s\S]*?```/g, function(match, offset) {
+                    const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+                    codeBlocks.push(match);
+                    return placeholder;
+                });
+                
+                // 保护行内代码 `...`
+                text = text.replace(/`([^`]+?)`/g, function(match, content, offset) {
+                    const placeholder = `__INLINE_CODE_${inlineCodes.length}__`;
+                    inlineCodes.push(match);
+                    return placeholder;
+                });
+                
+                // 处理块级数学公式 ($...$)
+                text = text.replace(/\$\$([^$]+?)\$\$/g, function(match, formula) {
+                    try {
+                        return katex.renderToString(formula.trim(), {
+                            displayMode: true,
+                            throwOnError: false,
+                            errorColor: '#cc0000',
+                            strict: false
+                        });
+                    } catch (e) {
+                        return `<div class="katex-error">Math Error: ${e.message}</div>`;
+                    }
+                });
+
+                // 处理行内数学公式 ($...$)，使用更严格的正则表达式
+                text = text.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, function(match, formula) {
+                    try {
+                        return katex.renderToString(formula.trim(), {
+                            displayMode: false,
+                            throwOnError: false,
+                            errorColor: '#cc0000',
+                            strict: false
+                        });
+                    } catch (e) {
+                        return `<span class="katex-error">Math Error: ${e.message}</span>`;
+                    }
+                });
+                // 恢复代码块
+                codeBlocks.forEach((code, index) => {
+                    text = text.replace(`__CODE_BLOCK_${index}__`, code);
+                });
+                
+                // 恢复行内代码
+                inlineCodes.forEach((code, index) => {
+                    text = text.replace(`__INLINE_CODE_${index}__`, code);
+                });
+
+                // 使用 marked 处理其他 Markdown 语法
+                let html = marked.parse(text);
+                
+                
+                return html;
+            } catch (e) {
+                console.error('Markdown parsing error:', e);
+                return marked.parse(plainText);
+            }
+        }
+
+        function renderMarkdownWithKaTeX(plainText) {
+            const blockMaths = [];
+            // 先提取所有块级公式 $$...$$，保存并替换为占位符
+            let text = plainText.replace(/\$\$([\s\S]+?)\$\$/g, (match, formula) => {
+                const rendered = katex.renderToString(formula.trim(), {
+                    displayMode: true,
+                    throwOnError: false,
+                    errorColor: '#cc0000',
+                    strict: false
+                });
+                const placeholder = `@@BLOCK_MATH_${blockMaths.length}@@`;
+
+
+                blockMaths.push(rendered);
+                return placeholder;
+            });
+
+            // 先用 marked 解析处理其他 Markdown 语法（此时不包含块级公式）
+            let rawHtml = marked.parse(text);
+
+            // 创建 DOM，方便操作
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = rawHtml;
+
+            // 递归遍历 DOM，跳过代码块，处理行内公式
+            function renderMathInNode(node) {
+                if (["CODE", "PRE", "SCRIPT", "STYLE"].includes(node.tagName)) return;
+
+                if (node.nodeType === Node.TEXT_NODE) {
+                    // 处理行内公式 $...$
+                    const replaced = node.textContent.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, (_, formula) => {
+                        return katex.renderToString(formula.trim(), {
+                            displayMode: false,
+                            throwOnError: false,
+                            errorColor: '#cc0000',
+                            strict: false
+                        });
+                    });
+                    if (replaced !== node.textContent) {
+                        const span = document.createElement("span");
+                        span.innerHTML = replaced;
+                        node.replaceWith(span);
+                    }
+                } else {
+                    node.childNodes.forEach(renderMathInNode);
+                }
+            }
+
+            renderMathInNode(tempDiv);
+
+            // 恢复块级公式占位符为渲染好的 HTML
+            blockMaths.forEach((html, index) => {
+                const placeholder = `@@BLOCK_MATH_${index}@@`;
+                tempDiv.innerHTML = tempDiv.innerHTML.replace(placeholder, html);
+            });
+
+            return tempDiv.innerHTML;
+        }
+
+        const markdownContent = `# SimpleMDE with KaTeX Support
+
+This editor now supports LaTeX math rendering! 
+
+## 行内数学公式 (Inline Math)
+
+你可以在文本中插入行内公式，比如 $E = mc^2$，或者 $f(x) = ax^2 + bx + c$。
+
+当 $a \\neq 0$ 时，二次方程 $ax^2 + bx + c = 0$ 的解为：$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$
+
+## 块级数学公式 (Display Math)
+
+对于更复杂的数学表达式，可以使用块级公式：
+
+$$\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}$$
+
+### 矩阵示例
+
+$$\\begin{pmatrix}
+a & b \\\\
+c & d
+\\end{pmatrix} \\begin{pmatrix}
+x \\\\
+y
+\\end{pmatrix} = \\begin{pmatrix}
+ax + by \\\\
+cx + dy
+\\end{pmatrix}$$
+
+### 求和符号
+
+$$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$
+
+### 极限
+
+$$\\lim_{x \\to \\infty} \\frac{1}{x} = 0$$
+
+### 分数和根号
+
+$$\\frac{d}{dx}\\sqrt{x} = \\frac{1}{2\\sqrt{x}}$$
+
+### 三角函数
+
+$$\\sin^2(x) + \\cos^2(x) = 1$$
+
+## 常规 Markdown 功能
+
+当然，所有的 **粗体**、*斜体*、\`代码\` 和 [链接](https://katex.org/) 功能都正常工作。
+
+### 代码块
+\`\`\`javascript
+function calculateArea(radius) {
+    return Math.PI * radius * radius;
+}
+\`\`\`
+
+### 列表
+- 支持 LaTeX 数学公式
+- 支持常规 Markdown 语法
+- 实时预览
+- 响应式设计
+
+### 图片
+<img src="https://cn.bing.com/th?id=OHR.SecedaPeak_ZH-CN7633793128_1920x1080.jpg" alt="Mountain" title="Beautiful Mountain" width="600">
+
+## 数学公式语法说明
+
+- **行内公式**: 用单个美元符号包围，如 E = mc^2
+- **块级公式**: 用双个美元符号包围，如积分公式
+- **特殊字符**: 使用反斜杠转义，如 \\\\alpha, \\\\beta, \\\\gamma
+- **上下标**: x^2, x_i, x_{i+1}
+- **分数**: \\\\frac{分子}{分母}
+- **根号**: \\\\sqrt{内容}, \\\\sqrt[n]{内容}
+
+### 示例语法（复制使用）：
+\`\`\`
+行内公式：$E = mc^2$
+块级公式：$\\int_0^1 f(x)dx$
+希腊字母：$\\alpha + \\beta = \\gamma$
+分数：$\\frac{a}{b}$
+根号：$\\sqrt{x^2 + y^2}$
+上下标：$x^2 + x_1$
+\`\`\`
+
+试试编辑这些公式，看看实时预览的效果！`;
+
+        // 设置 marked 配置
+        marked.setOptions({
+            breaks: true,             // 启用换行（这一项是核心）
+            mangle: false,            // 可选：防止 email 地址被混淆
+            headerIds: false,         // 可选：不自动生成标题 ID
+            // singleLineBreaks 是个别名设置，在 5.x 里 breaks 就实现了类似功能
+        });
+        const simplemde = new SimpleMDE({
+            element: document.getElementById("editor1"),
+            autofocus: true,
+            spellChecker: false,
+            initialValue: "",
+            autosave: {
+                enabled: true,
+                uniqueId: "MyUniqueID_KaTeX",
+                delay: 1000,
+            },
+            // 自定义预览渲染器，支持 KaTeX
+            previewRender: function(plainText) {
+                // return customMarkdownParser(plainText);
+                return renderMarkdownWithKaTeX(plainText);
+            },
+            // 添加更多配置选项
+            toolbar: [
+                "bold", "italic", "heading", "|",
+                "code", "quote", "unordered-list", "ordered-list", "|",
+                "link", "image", "|",
+                "preview", "side-by-side", "fullscreen", "|",
+                "guide"
+            ],
+            promptURLs: true,
+            renderingConfig: {
+                singleLineBreaks: true,
+                codeSyntaxHighlighting: true,
+            },
+            lineWrapping: true,
+            parsingConfig: {
+                allowAtxHeaderWithoutSpace: false,
+                strikethrough: true,
+                underscoresBreakWords: false,
+            },
+            placeholder: "Type here...",
+            status: false, // 隐藏状态栏以节省空间
+            status: ["autosave", "lines", "words", "cursor", {
+                className: "keystrokes",
+                defaultValue: function(el) {
+                    this.keystrokes = 0;
+                    el.innerHTML = "0 Keystrokes";
+                },
+                onUpdate: function(el) {
+                    el.innerHTML = ++this.keystrokes + " Keystrokes";
+                }
+            }], // Another optional usage, with a custom status bar item that counts keystrokes
+            styleSelectedText: false,
+            tabSize: 4,
+        });
+         
+        // 打开文件按钮事件
+        document.getElementById("openFileBtn").addEventListener("click", () => {
+            document.getElementById("fileInput").click();
+        });
+
+        // 文件输入框变化事件
+        document.getElementById("fileInput").addEventListener("change", (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // 检查文件类型
+            const validTypes = ['.md', '.txt', '.markdown'];
+            const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+            
+            if (!validTypes.includes(fileExtension)) {
+                alert('请选择 Markdown 文件 (.md, .txt, .markdown)');
+                return;
+            }
+
+            // 读取文件内容
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                
+                // 检查是否在预览模式，如果是则切换回编辑模式
+                const isPreviewActive = simplemde.isPreviewActive();
+                if (isPreviewActive) {
+                    simplemde.togglePreview();
+                }
+                
+                // 设置文件内容到编辑器
+                simplemde.value(content);
+                
+                // 刷新编辑器
+                simplemde.codemirror.refresh();
+                
+                // 显示成功消息
+                const openBtn = document.getElementById("openFileBtn");
+                const originalText = openBtn.textContent;
+                openBtn.textContent = "文件已打开 ✅";
+                openBtn.style.backgroundColor = "#28a745";
+                
+                setTimeout(() => {
+                    openBtn.textContent = originalText;
+                    openBtn.style.backgroundColor = "#28a745";
+                }, 2000);
+            };
+
+            reader.onerror = () => {
+                alert('文件读取失败，请重试！');
+            };
+
+            // 以文本格式读取文件
+            reader.readAsText(file, 'UTF-8');
+            
+            // 重置文件输入框，允许重复选择同一文件
+            event.target.value = '';
+        });
+
+        // 导出按钮事件
+        document.getElementById("exportBtn").addEventListener("click", () => {
+            const content = simplemde.value();
+            const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "markdown_with_math.md";
+            document.body.appendChild(a);
+            a.click();
+
+            // 清理
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }); 
+
+        // 修复后的清空内容按钮
+        document.getElementById("clearBtn").addEventListener("click", () => {
+            // 检查是否在预览模式
+            const isPreviewActive = simplemde.isPreviewActive();
+            
+            // 如果在预览模式，先切换回编辑模式
+            if (isPreviewActive) {
+                simplemde.togglePreview();
+            }
+            
+            // 清空内容
+            simplemde.value("");
+            
+            // 强制刷新编辑器
+            simplemde.codemirror.refresh();
+        });
+
+        // 加载 Demo Text 按钮
+        document.getElementById("loadDemoBtn").addEventListener("click", () => {
+            // 检查是否在预览模式
+            const isPreviewActive = simplemde.isPreviewActive();
+            
+            // 如果在预览模式，先切换回编辑模式
+            if (isPreviewActive) {
+                simplemde.togglePreview();
+            }
+            
+            // 加载内容
+            simplemde.value(markdownContent);
+            
+            // 强制刷新编辑器
+            simplemde.codemirror.refresh();
+        });
+
+        // 插入数学公式按钮
+        document.getElementById("insertMathBtn").addEventListener("click", () => {
+            const cm = simplemde.codemirror;
+            const cursor = cm.getCursor();
+            
+            // 获取当前选中的文本
+            const selection = cm.getSelection();
+            
+            if (selection) {
+                // 如果有选中文本，将其包装为行内公式
+                cm.replaceSelection(`$${selection}$`);
+            } else {
+                // 没有选中文本，插入示例公式
+                const examples = [
+                    '$E = mc^2$',
+                    '$\\sum_{i=1}^{n} i$',
+                    '$\\int_0^1 f(x)dx$',
+                    '$$\\frac{d}{dx}f(x) = \\lim_{h \\to 0} \\frac{f(x+h) - f(x)}{h}$$',
+                    '$\\alpha + \\beta = \\gamma$',
+                    '$x^2 + y^2 = r^2$'
+                ];
+                
+                const randomExample = examples[Math.floor(Math.random() * examples.length)];
+                cm.replaceRange(randomExample, cursor);
+                
+                // 移动光标到公式内部
+                if (randomExample.startsWith('$$')) {
+                    cm.setCursor(cursor.line, cursor.ch + 2);
+                } else {
+                    cm.setCursor(cursor.line, cursor.ch + 1);
+                }
+            }
+            
+            cm.focus();
+        });
+
+        const copyBtn = document.getElementById("copyBtn");
+
+        copyBtn.addEventListener("click", () => {
+            const content = simplemde.value();
+            navigator.clipboard.writeText(content)
+                .then(() => {
+                    copyBtn.textContent = "已复制 ✅";
+                    setTimeout(() => {
+                        copyBtn.textContent = "复制内容";
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error("复制失败:", err);
+                    alert("复制失败，请手动复制！");
+                });
+        });
+
+        // 初始化和resize事件处理
+        window.addEventListener("load", () => {
+            simplemde.codemirror.refresh();
+        });
+
+        window.addEventListener("resize", () => {
+            simplemde.codemirror.refresh();
+        });
+
+        // 确保编辑器在各种模式切换后都能正确显示
+        const originalTogglePreview = simplemde.togglePreview;
+        simplemde.togglePreview = function() {
+            originalTogglePreview.call(this);
+            setTimeout(() => {
+                this.codemirror.refresh();
+            }, 100);
+        };
+
+        const originalToggleSideBySide = simplemde.toggleSideBySide;
+        simplemde.toggleSideBySide = function() {
+            originalToggleSideBySide.call(this);
+            setTimeout(() => {
+                this.codemirror.refresh();
+            }, 100);
+        };
+    </script>
+</body>
+</html>
