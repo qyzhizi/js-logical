@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vditor HTML 编辑器</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vditor/3.10.4/index.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+            padding: 20px 30px;
+            color: white;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .editor-container {
+            padding: 30px;
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
+        }
+
+        .toolbar-left {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .mode-selector {
+            display: flex;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            overflow: hidden;
+        }
+
+        .mode-btn {
+            padding: 8px 12px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s ease;
+        }
+
+        .mode-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        #vditor {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            min-height: 500px;
+        }
+
+        .footer {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            text-align: center;
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background: #e9ecef;
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .word-count {
+            font-weight: 500;
+        }
+
+        .save-status {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .save-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #28a745;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .header {
+                padding: 15px 20px;
+            }
+            
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .editor-container {
+                padding: 20px;
+            }
+            
+            .toolbar {
+                flex-direction: column;
+                gap: 15px;
+                align-items: stretch;
+            }
+            
+            .toolbar-left {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Vditor HTML 编辑器</h1>
+            <p>功能强大的 Markdown 编辑器，支持多种编辑模式</p>
+        </div>
+        
+        <div class="editor-container">
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <button class="btn btn-primary" onclick="exportHTML()">
+                        📄 导出 HTML
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportMarkdown()">
+                        📝 导出 Markdown
+                    </button>
+                    <button class="btn btn-success" onclick="saveContent()">
+                        💾 保存内容
+                    </button>
+                </div>
+                
+                <div class="mode-selector">
+                    <button class="mode-btn active" onclick="switchMode('wysiwyg')">所见即所得</button>
+                    <button class="mode-btn" onclick="switchMode('ir')">即时渲染</button>
+                    <button class="mode-btn" onclick="switchMode('sv')">分屏预览</button>
+                </div>
+            </div>
+            
+            <div id="vditor"></div>
+            
+            <div class="status-bar">
+                <div class="word-count">
+                    字数: <span id="wordCount">0</span> | 字符: <span id="charCount">0</span>
+                </div>
+                <div class="save-status">
+                    <div class="save-indicator"></div>
+                    <span>已保存</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>基于 Vditor 构建的现代化 Markdown 编辑器 | 支持实时预览、语法高亮、数学公式等功能</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vditor/3.10.4/index.min.js"></script>
+    <script>
+        let vditor;
+        let currentMode = 'wysiwyg';
+
+        // 初始化编辑器
+        function initVditor() {
+            vditor = new Vditor('vditor', {
+                height: 500,
+                mode: currentMode,
+                theme: 'classic',
+                placeholder: '开始编写你的内容...\n\n支持 Markdown 语法:\n- **粗体文本**\n- *斜体文本*\n- [链接](https://example.com)\n- `代码块`\n- > 引用文本\n\n还支持数学公式、流程图、表格等高级功能！',
+                preview: {
+                    theme: {
+                        current: 'light',
+                    },
+                    hljs: {
+                        style: 'github',
+                    },
+                    math: {
+                        inlineDigit: true,
+                    },
+                },
+                toolbar: [
+                    'emoji',
+                    'headings',
+                    'bold',
+                    'italic',
+                    'strike',
+                    '|',
+                    'line',
+                    'quote',
+                    'list',
+                    'ordered-list',
+                    'check',
+                    'outdent',
+                    'indent',
+                    '|',
+                    'code',
+                    'inline-code',
+                    'insert-before',
+                    'insert-after',
+                    '|',
+                    'table',
+                    'link',
+                    'upload',
+                    '|',
+                    'undo',
+                    'redo',
+                    '|',
+                    'edit-mode',
+                    'content-theme',
+                    'code-theme',
+                    'fullscreen',
+                    'outline',
+                    'devtools',
+                    'info',
+                    'help',
+                ],
+                counter: {
+                    enable: true,
+                },
+                cache: {
+                    enable: false,
+                },
+                after: () => {
+                    // 编辑器初始化完成后的回调
+                    updateWordCount();
+                    
+                    // 设置默认内容
+                    const defaultContent = `# 欢迎使用 Vditor 编辑器! 🎉
+
+这是一个功能强大的 Markdown 编辑器，支持多种编辑模式和丰富的功能。
+
+## 主要特性
+
+- **所见即所得模式**: 类似 Word 的编辑体验
+- **即时渲染模式**: 实时预览 Markdown 效果  
+- **分屏预览模式**: 传统的 Markdown 编辑模式
+
+## 支持的功能
+
+### 基础语法
+- **粗体文本** 和 *斜体文本*
+- ~~删除线文本~~
+- \`行内代码\`
+- [链接文本](https://github.com/Vanessa219/vditor)
+
+### 高级功能
+- 数学公式: $E = mc^2$
+- 表格支持
+- 任务列表
+- 代码块语法高亮
+- 表情符号 :smile:
+
+### 代码示例
+
+\`\`\`javascript
+function hello() {
+    console.log("Hello, Vditor!");
+}
+\`\`\`
+
+### 表格示例
+
+| 功能 | 描述 | 状态 |
+|------|------|------|
+| Markdown | 标准语法支持 | ✅ |
+| 数学公式 | LaTeX 语法 | ✅ |
+| 图表 | Mermaid 流程图 | ✅ |
+
+> 💡 **提示**: 尝试使用工具栏上的不同按钮来探索更多功能！
+
+开始编写你的内容吧~ ✨`;
+                    
+                    vditor.setValue(defaultContent);
+                    updateWordCount();
+                },
+                input: (value) => {
+                    // 内容变化时的回调
+                    updateWordCount();
+                    autoSave();
+                },
+            });
+        }
+
+        // 切换编辑模式
+        function switchMode(mode) {
+            if (currentMode === mode) return;
+            
+            const content = vditor.getValue();
+            currentMode = mode;
+            
+            // 更新按钮状态
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 重新初始化编辑器
+            vditor.destroy();
+            setTimeout(() => {
+                initVditor();
+                setTimeout(() => {
+                    vditor.setValue(content);
+                }, 100);
+            }, 100);
+        }
+
+        // 更新字数统计
+        function updateWordCount() {
+            if (!vditor) return;
+            
+            const content = vditor.getValue();
+            const wordCount = content.replace(/\s+/g, '').length;
+            const charCount = content.length;
+            
+            document.getElementById('wordCount').textContent = wordCount;
+            document.getElementById('charCount').textContent = charCount;
+        }
+
+        // 导出 HTML
+        function exportHTML() {
+            const html = vditor.getHTML();
+            const blob = new Blob([html], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'document.html';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showNotification('HTML 文件已导出！', 'success');
+        }
+
+        // 导出 Markdown
+        function exportMarkdown() {
+            const markdown = vditor.getValue();
+            const blob = new Blob([markdown], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'document.md';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showNotification('Markdown 文件已导出！', 'success');
+        }
+
+        // 保存内容
+        function saveContent() {
+            const content = vditor.getValue();
+            // 这里可以实现保存到服务器的逻辑
+            // 目前只是保存到内存中作为演示
+            window.savedContent = content;
+            showNotification('内容已保存！', 'success');
+        }
+
+        // 自动保存
+        let saveTimeout;
+        function autoSave() {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                const content = vditor.getValue();
+                window.savedContent = content;
+                // 这里可以实现自动保存到服务器的逻辑
+            }, 2000);
+        }
+
+        // 显示通知
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                background: ${type === 'success' ? '#28a745' : '#17a2b8'};
+                color: white;
+                border-radius: 6px;
+                z-index: 10000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                transform: translateX(400px);
+                transition: transform 0.3s ease;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+            
+            setTimeout(() => {
+                notification.style.transform = 'translateX(400px)';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        // 页面加载完成后初始化编辑器
+        document.addEventListener('DOMContentLoaded', function() {
+            initVditor();
+        });
+
+        // 键盘快捷键
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 's':
+                        e.preventDefault();
+                        saveContent();
+                        break;
+                    case 'e':
+                        e.preventDefault();
+                        exportHTML();
+                        break;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
