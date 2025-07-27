@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Markdown editor in the browser</title>
+    <style>
+    body, html {
+        min-height: 100vh;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        /* 水平居中 */
+        justify-content: center; 
+        /* 垂直居中 */
+        align-items: center;     
+        font-size: large;
+    }
+    #editor-container {
+        min-height: 90vh;
+        min-width: 90vw;
+        box-sizing: border-box;
+        padding-top: 20px;
+        padding-bottom: 20px;
+    }
+    td,
+    th {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f2f2f2;
+    }
+
+    tr:hover {
+      background-color: #ddd;
+    }
+
+    th {
+      padding-top: 12px;
+      padding-bottom: 12px;
+      text-align: left;
+      background-color: #04AA6D;
+      color: white;
+    }
+    /* 响应式样式 */
+    @media (max-width: 768px) {
+        body{
+            font-size: larger;
+        }
+        #editor-container {
+            font-size: 20px;
+        }
+    }
+
+  </style>
+  <link rel="stylesheet" href="chunmde.min.css">
+  <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+
+</head>
+<body>
+  <div id="editor-container"></div>
+  <script src="chunmde.bundle.min.js"></script>
+  <script>
+    const { createChunEditor, createImageUploadPlugin, createMarkdownPreviewPlugin, githubPreviewConfig, darkPreviewConfig } = Chun
+    
+    const imageUploadPlugin = createImageUploadPlugin({
+      imageUploadUrl: "", 
+      imageFormats: ["image/jpg", "image/jpeg", "image/gif", "image/png", "image/bmp", "image/webp"],
+    })
+
+    const MarkdownPreviewPlugin = createMarkdownPreviewPlugin(githubPreviewConfig)
+
+    let initialContent = `# Markdown Editor`
+    const editor = createChunEditor({
+      doc: initialContent.value,
+      lineWrapping: true,
+      indentWithTab: true,
+      toolbar: true,
+    })
+    .use(imageUploadPlugin)
+    .use(MarkdownPreviewPlugin)
+    .mount("editor-container")
+
+    console.log(editor.getValue())
+  </script>
+</body>
+</html>
