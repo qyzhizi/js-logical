@@ -191,7 +191,7 @@
             <div class="editor-panel">
                 <div class="controls">
                     <button class="btn btn-primary" onclick="astManager.renderAST()">更新AST</button>
-                    <button class="btn btn-secondary" onclick="editorManager.initEditor()">初始化编辑器，创建空白行utton>
+                    <button class="btn btn-secondary" onclick="editorManager.initEditor()">初始化编辑器，创建空白行</button>
                     <button class="btn btn-secondary" onclick="editorManager.loadSample()">加载示例</button>
                 </div>
                 
@@ -543,7 +543,6 @@
                     console.error("frontAstNode, 当前行未找到对应的 AST 节点");
                     return;
                 }
-                const astNodeParent = frontAstNode?.parent;
                 const node = this.createNode({
                     id: toInsertLineId,
                     styleType: NODE_TYPES.BLOCK,
@@ -551,6 +550,27 @@
                     content: initialContent,
                     indentLevel}
                 )
+
+                let tempChildren = frontAstNode.children || [];
+                let tempContinueChildren = frontAstNode.continueChildren || [];
+                if (tempChildren.length > 0 || tempContinueChildren.length > 0) {
+                    // 将 tempChildren 和 tempContinueChildren 中的节点作为toInsertLineId 对应节点的 children 与 continueChildren, 并且要调整 children 与 continueChildren 中每个节点的 parent
+                    node.children = tempChildren;
+                    node.continueChildren = tempContinueChildren;
+                    // 更新每个子节点的 parent
+                    tempChildren.forEach(child => {
+                        child.parent = node;
+                    });
+                    tempContinueChildren.forEach(child => {
+                        child.parent = node;
+                    });
+                    
+                    // 删除 frontAstNode 中的 children 和 continueChildren
+                    frontAstNode.children = [];
+                    frontAstNode.continueChildren = [];
+                } 
+
+                const astNodeParent = frontAstNode?.parent;
                 if (!astNodeParent) {
                     // 获取在 this.root 中的索引
                     const toInsertIndex = this.root.findIndex(n => n.id === frontAstNode.id);
