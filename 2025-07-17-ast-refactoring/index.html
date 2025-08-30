@@ -282,11 +282,17 @@
             },
             
             // 设置光标到末尾
-            setCaretToEnd: (element) => {
+            setCaretToEnd : function(line) {
                 const range = document.createRange();
                 const selection = window.getSelection();
-                range.selectNodeContents(element);
-                range.collapse(false);
+
+                // 假设 line 里只有一个文本节点
+                const textNode = line.firstChild || line;
+                const offset = textNode.textContent.length;
+
+                range.setStart(textNode, offset);
+                range.collapse(true); // 光标而不是选中
+
                 selection.removeAllRanges();
                 selection.addRange(range);
             },
@@ -911,20 +917,21 @@
                 const lines = this.getSelectedLines();
                 if (!lines.length) return;
 
-                // 缓存选区起始 offset
+                const isSingleLine = lines.length === 1;
+
+                // 缓存光标信息
                 const anchorOffset = range.startOffset;
                 const focusOffset = range.endOffset;
 
-                // 缓存缩进前的首尾行节点（用于稍后恢复 range）
+                // 缓存原始的锚点和焦点行
                 const originalAnchorLine = lines[0];
                 const originalFocusLine = lines[lines.length - 1];
 
-                // 缩进处理
+                // 执行缩进逻辑
                 lines.forEach(line => {
                     const node = this.astManager.getNode(line.dataset.id);
                     if (!node) return;
 
-                    // 更新DOM
                     let text = line.textContent;
                     if (isShift) {
                         if (text.startsWith(INDENT_CHAR)) {
@@ -945,20 +952,26 @@
                     }
                 });
 
-                // 重新获取 anchor 和 focus 节点
+                // 新的选区恢复
                 const newAnchorNode = originalAnchorLine.firstChild;
                 const newFocusNode = originalFocusLine.firstChild;
 
-                // 计算 offset 偏移（假设所有行都加或减了一个缩进字符）
-                const delta = isShift ? -1 : 1;
-                const adjustedAnchorOffset = Math.max(0, anchorOffset + delta);
-                const adjustedFocusOffset = Math.max(0, focusOffset + delta);
-
-                // 恢复多行选中状态
                 if (newAnchorNode && newFocusNode) {
                     const newRange = document.createRange();
-                    newRange.setStart(newAnchorNode, Math.min(adjustedAnchorOffset, newAnchorNode.length));
-                    newRange.setEnd(newFocusNode, Math.min(adjustedFocusOffset, newFocusNode.length));
+
+                    if (isSingleLine) {
+                        // 单行：光标随着缩进移动
+                        const delta = isShift ? -1 : 1;
+                        const adjustedAnchorOffset = Math.max(0, anchorOffset + delta);
+                        const adjustedFocusOffset = Math.max(0, focusOffset + delta);
+
+                        newRange.setStart(newAnchorNode, Math.min(adjustedAnchorOffset, newAnchorNode.length));
+                        newRange.setEnd(newFocusNode, Math.min(adjustedFocusOffset, newFocusNode.length));
+                    } else {
+                        // 多行：保持整块选区，不要偏移
+                        newRange.setStart(newAnchorNode, 0);
+                        newRange.setEnd(newFocusNode, newFocusNode.length);
+                    }
 
                     selection.removeAllRanges();
                     selection.addRange(newRange);
@@ -969,7 +982,7 @@
                 this.astManager.renderAST();
 
             }
-            
+
             // 处理输入事件 - 增强版，支持自动转换为块节点
             handleInput(e) {
                 const line = this.getCurrentLine();
@@ -1100,16 +1113,47 @@
             }
             
             // 获取选中的行
+            // getSelectedLines() {
+            //     const selection = window.getSelection();
+            //     const range = selection.getRangeAt(0);
+                
+            //     return Array.from(this.editor.children).filter(line => {
+            //         const lineRect = line.getBoundingClientRect();
+            //         const rangeRect = range.getBoundingClientRect();
+            //         return lineRect.bottom > rangeRect.top && lineRect.top < rangeRect.bottom;
+            //     });
+            // }
+
+            // 获取选中的行（支持光标和多行选中）
             getSelectedLines() {
                 const selection = window.getSelection();
+                if (!selection.rangeCount) return [];
+
                 const range = selection.getRangeAt(0);
-                
+
+                // 如果是折叠选区（光标）
+                if (range.collapsed) {
+                    // 光标所在的 DOM 节点
+                    let node = range.startContainer;
+                    // 如果光标落在文本节点里，拿它的父元素
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        node = node.parentElement;
+                    }
+                    // 找到属于 editor 的直接子元素（即一行）
+                    while (node && node.parentElement !== this.editor) {
+                        node = node.parentElement;
+                    }
+                    return node ? [node] : [];
+                }
+
+                // 如果是非折叠选区（有选中文字）
+                const rangeRect = range.getBoundingClientRect();
                 return Array.from(this.editor.children).filter(line => {
                     const lineRect = line.getBoundingClientRect();
-                    const rangeRect = range.getBoundingClientRect();
                     return lineRect.bottom > rangeRect.top && lineRect.top < rangeRect.bottom;
                 });
             }
+
             
             // 清空编辑器
             clear() {
